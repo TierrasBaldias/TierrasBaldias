@@ -1,7 +1,9 @@
 using System;
+using Server.Engines.Craft;
 
 namespace Server.Items
 {
+    [Alterable(typeof(DefTailoring), typeof(GargishLeatherArms))]
     [FlipableAttribute(0x13cd, 0x13c5)]
     public class LeatherArms : BaseArmor
     {
@@ -9,7 +11,7 @@ namespace Server.Items
         public LeatherArms()
             : base(0x13CD)
         {
-            this.Weight = 2.0;
+            Weight = 2.0;
         }
 
         public LeatherArms(Serial serial)
@@ -118,9 +120,6 @@ namespace Server.Items
         {
             base.Deserialize(reader);
             int version = reader.ReadInt();
-
-            if (this.Weight == 1.0)
-                this.Weight = 2.0;
         }
     }
 }

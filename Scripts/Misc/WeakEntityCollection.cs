@@ -1,10 +1,4 @@
-﻿#region Header
-// **********
-// ServUO - WeakEntityCollection.cs
-// **********
-#endregion
-
-#region References
+﻿#region References
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -149,6 +143,11 @@ namespace Server
 
 			return col;
 		}
+
+        public static bool HasCollection(string name)
+        {
+            return name != null && _Collections.ContainsKey(name);
+        }
 
 		public static void Add(string key, IEntity entity)
 		{

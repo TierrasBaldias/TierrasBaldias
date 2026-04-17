@@ -9,12 +9,10 @@ namespace Server.Items
         public Windsong()
             : base()
         {
-            this.Hue = 0xF7;
-			
-            this.Attributes.WeaponDamage = 35;
-            this.WeaponAttributes.SelfRepair = 3;
-			
-            this.Velocity = 25;			
+            Hue = 172;			
+            Attributes.WeaponDamage = 35;
+            WeaponAttributes.SelfRepair = 3;			
+            Velocity = 25;			
         }
 
         public Windsong(Serial serial)

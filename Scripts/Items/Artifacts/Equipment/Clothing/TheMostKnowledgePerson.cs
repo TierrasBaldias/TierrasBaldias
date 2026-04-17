@@ -1,18 +1,19 @@
 using System;
+using Server.Engines.Craft;
 
 namespace Server.Items
 {
-    public class TheMostKnowledgePerson : BaseOuterTorso
-	{
+    public class TheMostKnowledgePerson : BaseOuterTorso, IRepairable
+    {
+        public CraftSystem RepairSystem { get { return DefTailoring.CraftSystem; } }
+
 		public override bool IsArtifact { get { return true; } }
         [Constructable]
         public TheMostKnowledgePerson()
             : base(0x2684)
         {
-            this.Hue = 0x117;
-            this.StrRequirement = 0;
-
-            this.Attributes.BonusHits = 3 + Utility.RandomMinMax(0, 2);
+            Hue = 0x117;
+            Attributes.BonusHits = 3 + Utility.RandomMinMax(0, 2);
         }
 
         public TheMostKnowledgePerson(Serial serial)
@@ -47,14 +48,7 @@ namespace Server.Items
             {
                 return false;
             }
-        }
-        public override bool CanBeBlessed
-        {
-            get
-            {
-                return false;
-            }
-        }
+        }       
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);

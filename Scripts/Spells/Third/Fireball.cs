@@ -31,50 +31,61 @@ namespace Server.Spells.Third
         }
         public override void OnCast()
         {
-            this.Caster.Target = new InternalTarget(this);
+            Caster.Target = new InternalTarget(this);
         }
 
-        public void Target(Mobile m)
+        public void Target(IDamageable m)
         {
-            if (!this.Caster.CanSee(m))
+            if (!Caster.CanSee(m))
             {
-                this.Caster.SendLocalizedMessage(500237); // Target can not be seen.
+                Caster.SendLocalizedMessage(500237); // Target can not be seen.
             }
-            else if (this.CheckHSequence(m))
+            else if (CheckHSequence(m))
             {
-                Mobile source = this.Caster;
+                IDamageable source = Caster;
+                IDamageable target = m;
 
-                SpellHelper.Turn(source, m);
+                SpellHelper.Turn(Caster, m);
 
-                SpellHelper.CheckReflect((int)this.Circle, ref source, ref m);
+                if (SpellHelper.CheckReflect((int)Circle, ref source, ref target))
+                {
+                    Timer.DelayCall(TimeSpan.FromSeconds(.5), () =>
+                        {
+                            source.MovingParticles(target, 0x36D4, 7, 0, false, true, 9502, 4019, 0x160);
+                            source.PlaySound(Core.AOS ? 0x15E : 0x44B);
+                        });
+                }
 
-                double damage;
+                double damage = 0;
 
                 if (Core.AOS)
                 {
-                    damage = this.GetNewAosDamage(19, 1, 5, m);
+                    damage = GetNewAosDamage(19, 1, 5, m);
                 }
-                else
+                else if (m is Mobile)
                 {
                     damage = Utility.Random(10, 7);
 
-                    if (this.CheckResisted(m))
+                    if (CheckResisted((Mobile)m))
                     {
                         damage *= 0.75;
 
-                        m.SendLocalizedMessage(501783); // You feel yourself resisting magical energy.
+                        ((Mobile)m).SendLocalizedMessage(501783); // You feel yourself resisting magical energy.
                     }
 
-                    damage *= this.GetDamageScalar(m);
+                    damage *= GetDamageScalar((Mobile)m);
                 }
 
-                source.MovingParticles(m, 0x36D4, 7, 0, false, true, 9502, 4019, 0x160);
-                source.PlaySound(Core.AOS ? 0x15E : 0x44B);
+                if (damage > 0)
+                {
+                    Caster.MovingParticles(m, 0x36D4, 7, 0, false, true, 9502, 4019, 0x160);
+                    Caster.PlaySound(Core.AOS ? 0x15E : 0x44B);
 
-                SpellHelper.Damage(this, m, damage, 0, 100, 0, 0, 0);
+                    SpellHelper.Damage(this, target, damage, 0, 100, 0, 0, 0);
+                }
             }
 
-            this.FinishSequence();
+            FinishSequence();
         }
 
         private class InternalTarget : Target
@@ -83,18 +94,18 @@ namespace Server.Spells.Third
             public InternalTarget(FireballSpell owner)
                 : base(Core.ML ? 10 : 12, false, TargetFlags.Harmful)
             {
-                this.m_Owner = owner;
+                m_Owner = owner;
             }
 
             protected override void OnTarget(Mobile from, object o)
             {
-                if (o is Mobile)
-                    this.m_Owner.Target((Mobile)o);
+                if (o is IDamageable)
+                    m_Owner.Target((IDamageable)o);
             }
 
             protected override void OnTargetFinish(Mobile from)
             {
-                this.m_Owner.FinishSequence();
+                m_Owner.FinishSequence();
             }
         }
     }

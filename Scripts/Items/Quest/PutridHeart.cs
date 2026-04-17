@@ -20,13 +20,16 @@ namespace Server.Items
         {
             Stackable = true;
             Amount = amount;
+            Hue = 2599;
         }
 
         public override void OnDoubleClick(Mobile from)
         {
             if (!this.Deleted && DespiseController.Instance != null)
             {
-                DespiseController.Instance.AddDespisePoints(from, this);
+                //DespiseController.Instance.AddDespisePoints(from, this);
+                Engines.Points.PointsSystem.DespiseCrystals.AwardPoints(from, this.Amount);
+                this.Delete();
             }
         }
 

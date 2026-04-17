@@ -1,9 +1,3 @@
-#region Header
-// **********
-// ServUO - ClientVersion.cs
-// **********
-#endregion
-
 #region References
 using System;
 using System.Collections;
@@ -52,6 +46,11 @@ namespace Server
 			m_Revision = rev;
 			m_Patch = pat;
 			m_Type = type;
+
+            if (m_Type != ClientType.SA && m_Major >= 67)
+            {
+                m_Type = ClientType.SA;
+            }
 
 			m_SourceString = _ToStringImpl();
 		}
@@ -182,7 +181,11 @@ namespace Server
 					}
 				}
 
-				if (fmt.IndexOf("god") >= 0 || fmt.IndexOf("gq") >= 0)
+                if (m_Major >= 67)
+                {
+                    m_Type = ClientType.SA;
+                }
+                else if(fmt.IndexOf("god") >= 0 || fmt.IndexOf("gq") >= 0)
 				{
 					m_Type = ClientType.God;
 				}

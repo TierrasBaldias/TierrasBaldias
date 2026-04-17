@@ -1,7 +1,9 @@
 using System;
+using Server.Engines.Craft;
 
 namespace Server.Items
 {
+    [Alterable(typeof(DefBlacksmithy), typeof(DiscMace))]
     [FlipableAttribute(0x143D, 0x143C)]
     public class HammerPick : BaseBashing
     {
@@ -9,8 +11,8 @@ namespace Server.Items
         public HammerPick()
             : base(0x143D)
         {
-            this.Weight = 9.0;
-            this.Layer = Layer.OneHanded;
+            Weight = 9.0;
+            Layer = Layer.OneHanded;
         }
 
         public HammerPick(Serial serial)

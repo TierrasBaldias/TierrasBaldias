@@ -1,4 +1,5 @@
 using System;
+using Server;
 using Server.Multis;
 using Server.Network;
 
@@ -6,48 +7,37 @@ namespace Server.Items
 {
     public class Hold : Container
     {
-        private BaseBoat m_Boat;
-        public Hold(BaseBoat boat)
-            : base(0x3EAE)
+        public override int LabelNumber { get { return 1149699; } } // cargo hold
+
+        [CommandProperty(AccessLevel.GameMaster)]
+        public BaseBoat Boat { get; private set; }
+
+        public override int DefaultMaxWeight { get { return 400; } }
+
+        public Hold(BaseBoat boat) : base(0x3EAE)
         {
-            this.m_Boat = boat;
-            this.Movable = false;
+            Boat = boat;
+            Movable = false;
         }
 
-        public Hold(Serial serial)
-            : base(serial)
+        public Hold(Serial serial) : base(serial)
         {
         }
 
-        public override bool IsDecoContainer
+        public virtual void SetFacing(Direction dir)
         {
-            get
+            switch (dir)
             {
-                return false;
-            }
-        }
-        public void SetFacing(Direction dir)
-        {
-            switch ( dir )
-            {
-                case Direction.East:
-                    this.ItemID = 0x3E65;
-                    break;
-                case Direction.West:
-                    this.ItemID = 0x3E93;
-                    break;
-                case Direction.North:
-                    this.ItemID = 0x3EAE;
-                    break;
-                case Direction.South:
-                    this.ItemID = 0x3EB9;
-                    break;
+                case Direction.East: ItemID = 0x3E65; break;
+                case Direction.West: ItemID = 0x3E93; break;
+                case Direction.North: ItemID = 0x3EAE; break;
+                case Direction.South: ItemID = 0x3EB9; break;
             }
         }
 
         public override bool OnDragDrop(Mobile from, Item item)
         {
-            if (this.m_Boat == null || !this.m_Boat.Contains(from) || this.m_Boat.IsMoving)
+            if (Boat == null || !Boat.Contains(from) || Boat.IsMoving)
                 return false;
 
             return base.OnDragDrop(from, item);
@@ -55,7 +45,7 @@ namespace Server.Items
 
         public override bool OnDragDropInto(Mobile from, Item item, Point3D p)
         {
-            if (this.m_Boat == null || !this.m_Boat.Contains(from) || this.m_Boat.IsMoving)
+            if (Boat == null || !Boat.Contains(from) || Boat.IsMoving)
                 return false;
 
             return base.OnDragDropInto(from, item, p);
@@ -63,7 +53,7 @@ namespace Server.Items
 
         public override bool CheckItemUse(Mobile from, Item item)
         {
-            if (item != this && (this.m_Boat == null || !this.m_Boat.Contains(from) || this.m_Boat.IsMoving))
+            if (item != this && (Boat == null || !Boat.Contains(from) || Boat.IsMoving))
                 return false;
 
             return base.CheckItemUse(from, item);
@@ -71,7 +61,7 @@ namespace Server.Items
 
         public override bool CheckLift(Mobile from, Item item, ref LRReason reject)
         {
-            if (this.m_Boat == null || !this.m_Boat.Contains(from) || this.m_Boat.IsMoving)
+            if (Boat == null || !Boat.Contains(from) || Boat.IsMoving)
                 return false;
 
             return base.CheckLift(from, item, ref reject);
@@ -79,53 +69,51 @@ namespace Server.Items
 
         public override void OnAfterDelete()
         {
-            if (this.m_Boat != null)
-                this.m_Boat.Delete();
+            if (Boat != null)
+                Boat.Delete();
         }
 
         public override void OnDoubleClick(Mobile from)
         {
-            if (this.m_Boat == null || !this.m_Boat.Contains(from))
+            if (Boat == null || !Boat.Contains(from))
             {
-                if (this.m_Boat.TillerMan != null)
-                    this.m_Boat.TillerMan.Say(502490); // You must be on the ship to open the hold.
+                if (Boat.TillerMan != null)
+                    Boat.TillerManSay(502490); // You must be on the ship to open the hold.
             }
-            else if (this.m_Boat.IsMoving)
+            else if (Boat.IsMoving && Boat.IsClassicBoat)
             {
-                if (this.m_Boat.TillerMan != null)
-                    this.m_Boat.TillerMan.Say(502491); // I can not open the hold while the ship is moving.
+                if (Boat.TillerMan != null)
+                    Boat.TillerManSay(502491); // I can not open the hold while the ship is moving.
             }
             else
-            {
                 base.OnDoubleClick(from);
-            }
         }
+
+        public override bool IsDecoContainer { get { return false; } }
 
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);
-
             writer.Write((int)0);
 
-            writer.Write(this.m_Boat);
+            writer.Write(Boat);
         }
 
         public override void Deserialize(GenericReader reader)
         {
             base.Deserialize(reader);
-
             int version = reader.ReadInt();
 
-            switch ( version )
+            switch (version)
             {
                 case 0:
                     {
-                        this.m_Boat = reader.ReadItem() as BaseBoat;
+                        Boat = reader.ReadItem() as BaseBoat;
 
-                        if (this.m_Boat == null || this.Parent != null)
-                            this.Delete();
+                        if (Boat == null || Parent != null)
+                            Delete();
 
-                        this.Movable = false;
+                        Movable = false;
 
                         break;
                     }

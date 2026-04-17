@@ -38,12 +38,19 @@ namespace Server.Mobiles
 
 			Fame = 18000;
 			Karma = -18000;
-		}
+
+            for (int i = 0; i < Utility.RandomMinMax(0, 1); i++)
+            {
+                this.PackItem(Loot.RandomScroll(0, Loot.ArcanistScrollTypes.Length, SpellbookType.Arcanist));
+            }
+        }
 				
 		public override void GenerateLoot()
 		{
 			AddLoot( LootPack.UltraRich, 2 );
 		}
+		
+		public override int TreasureMapLevel { get { return 4; } }
 
         public MinotaurGeneral(Serial serial)
             : base(serial)

@@ -9,27 +9,26 @@ namespace Server.Items
 				
 		[Constructable]
         public LetterOfIntroduction()
-            : base(0xEC0)
+            : base(0x1F23)
 		{
-			LootType = LootType.Blessed;
-			Weight = 1.0;
+            Hue = 1167;
+			Weight = 2.0;
+            QuestItem = true;
 		}
-		
-		public LetterOfIntroduction( Serial serial ) : base( serial )
+
+        public LetterOfIntroduction( Serial serial ) : base( serial )
 		{
 		}
 		
 		public override void Serialize( GenericWriter writer )
 		{
 			base.Serialize( writer );
-
 			writer.Write( (int) 0 ); // version
 		}
 		
 		public override void Deserialize( GenericReader reader )
 		{
 			base.Deserialize( reader );
-
 			int version = reader.ReadInt();
 		}
 	}
@@ -40,10 +39,11 @@ namespace Server.Items
 
         [Constructable]
         public MasteringWeaving()
-            : base(0x0FF0)
+            : base(0x1E20)
         {
-            LootType = LootType.Blessed;
-            Weight = 1.0;
+            Hue = 744;
+            Weight = 2.0;
+            QuestItem = true;
         }
 
         public MasteringWeaving(Serial serial)
@@ -54,14 +54,12 @@ namespace Server.Items
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);
-
             writer.Write((int)0); // version
         }
 
         public override void Deserialize(GenericReader reader)
         {
             base.Deserialize(reader);
-
             int version = reader.ReadInt();
         }
     }

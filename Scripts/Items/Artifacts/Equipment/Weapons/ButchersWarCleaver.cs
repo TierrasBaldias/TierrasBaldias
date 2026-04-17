@@ -9,6 +9,7 @@ namespace Server.Items
         public ButchersWarCleaver()
             : base()
         {
+            Slayer3 = TalismanSlayerName.Bovine;
         }
 
         public ButchersWarCleaver(Serial serial)

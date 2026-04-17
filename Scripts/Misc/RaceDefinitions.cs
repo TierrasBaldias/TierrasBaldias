@@ -103,6 +103,24 @@ namespace Server.Misc
                 return ((rand < 4) ? 0x203E : 0x2047) + rand;
             }
 
+            public override bool ValidateFace(bool female, int itemID)
+            {
+                if (itemID.Equals(0))
+                    return false;
+
+                if (itemID >= 0x3B44 && itemID <= 0x3B4D)
+                    return true;
+
+                return false;
+            }
+
+            public override int RandomFace(bool female)
+            {
+                int rand = Utility.Random(9);
+
+                return 15172 + rand;
+            }
+
             public override int ClipSkinHue(int hue)
             {
                 if (hue < 1002)
@@ -132,16 +150,26 @@ namespace Server.Misc
             {
                 return Utility.Random(1102, 48);
             }
+
+            public override int ClipFaceHue(int hue)
+            {
+                return ClipSkinHue(hue);
+            }
+
+            public override int RandomFaceHue()
+            {
+                return RandomSkinHue();
+            }
         }
 
         private class Elf : Race
         {
             private static readonly int[] m_SkinHues = new int[]
             {
-                0x0BF, 0x24D, 0x24E, 0x24F, 0x353, 0x361, 0x367, 0x374,
-                0x375, 0x376, 0x381, 0x382, 0x383, 0x384, 0x385, 0x389,
-                0x3DE, 0x3E5, 0x3E6, 0x3E8, 0x3E9, 0x430, 0x4A7, 0x4DE,
-                0x51D, 0x53F, 0x579, 0x76B, 0x76C, 0x76D, 0x835, 0x903
+                0x4DE, 0x76C, 0x835, 0x430, 0x24D, 0x24E, 0x24F, 0x0BF,
+                0x4A7, 0x361, 0x375, 0x367, 0x3E8, 0x3DE, 0x353, 0x903,
+                0x76D, 0x384, 0x579, 0x3E9, 0x374, 0x389, 0x385, 0x376,
+                0x53F, 0x381, 0x382, 0x383, 0x76B, 0x3E5, 0x51D, 0x3E6
             };
 
             private static readonly int[] m_HairHues = new int[]
@@ -210,6 +238,23 @@ namespace Server.Misc
                 return 0;
             }
 
+            public override bool ValidateFace(bool female, int itemID)
+            {
+                if (itemID.Equals(0))
+                    return false;
+
+                if (itemID >= 0x3B44 && itemID <= 0x3B4D)
+                    return true;
+
+                return false;
+            }
+            public override int RandomFace(bool female)
+            {
+                int rand = Utility.Random(9);
+
+                return 15172 + rand;
+            }
+
             public override int ClipSkinHue(int hue)
             {
                 for (int i = 0; i < m_SkinHues.Length; i++)
@@ -236,6 +281,16 @@ namespace Server.Misc
             public override int RandomHairHue()
             {
                 return m_HairHues[Utility.Random(m_HairHues.Length)];
+            }
+
+            public override int ClipFaceHue(int hue)
+            {
+                return ClipSkinHue(hue);
+            }
+
+            public override int RandomFaceHue()
+            {
+                return RandomSkinHue();
             }
         }
 
@@ -308,16 +363,26 @@ namespace Server.Misc
                     return Utility.RandomList(0, 0x42AD, 0x42AE, 0x42AF, 0x42B0);
             }
 
-            // Todo Finish body hues
-            private static readonly int[] m_BodyHues = new int[]
+            public override bool ValidateFace(bool female, int itemID)
             {
-                0x86DB, 0x86DC, 0x86DD, 0x86DE,
-                0x86DF, 0x86E0, 0x86E1, 0x86E2,
-                0x86E3, 0x86E4, 0x86E5, 0x86E6
-                // 0x, 0x, 0x, 0x, // 86E7/86E8/86E9/86EA?
-                // 0x, 0x, 0x, 0x, // 86EB/86EC/86ED/86EE?
-                // 0x86F3, 0x86DB, 0x86DC, 0x86DD
-            };
+                if (itemID.Equals(0))
+                {
+                    return false;
+                }
+
+                if (itemID >= 0x5679 && itemID <= 0x567E)
+                {
+                    return true;
+                }
+
+                return false;
+            }
+            public override int RandomFace(bool female)
+            {
+                int rand = Utility.Random(5);
+
+                return 22137 + rand;
+            }
 
             public override int ClipSkinHue(int hue)
             {
@@ -326,7 +391,7 @@ namespace Server.Misc
 
             public override int RandomSkinHue()
             {
-                return m_BodyHues[Utility.Random(m_BodyHues.Length)] | 0x8000;
+                return Utility.Random(1755, 25) | 0x8000;
             }
 
             private static readonly int[] m_HornHues = new int[]
@@ -348,6 +413,16 @@ namespace Server.Misc
             public override int RandomHairHue()
             {
                 return m_HornHues[Utility.Random(m_HornHues.Length)];
+            }
+
+            public override int ClipFaceHue(int hue)
+            {
+                return ClipSkinHue(hue);
+            }
+
+            public override int RandomFaceHue()
+            {
+                return RandomSkinHue();
             }
         }
         #endregion

@@ -27,6 +27,9 @@ namespace Server.Items
 
 			if( key != null )
 				key.Delete();
+
+            if(Core.SA)
+                RefinementComponent.Roll(this, 1, 0.08);
 		}
 
 		public BaseTreasureChestMod( Serial serial ) : base( serial )
@@ -79,7 +82,7 @@ namespace Server.Items
             if (item == null)
                 return;
 
-            if (Core.SA && Server.Mobiles.RandomItemGenerator.Enabled)
+            if (Core.SA && RandomItemGenerator.Enabled)
             {
                 int min, max;
                 TreasureMapChest.GetRandomItemStat(out min, out max);

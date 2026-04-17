@@ -5,13 +5,15 @@ namespace Server.Items
     public class PillarOfStrength : LargeStoneShield
 	{
 		public override bool IsArtifact { get { return true; } }
+        public override int LabelNumber { get { return 1113533; } }
+
         [Constructable]
         public PillarOfStrength()
             : base()
         {
-            this.Attributes.BonusStr = 10;
-            this.Attributes.BonusHits = 10;
-            this.Attributes.WeaponDamage = 20;
+            Attributes.BonusStr = 10;
+            Attributes.BonusHits = 10;
+            Attributes.WeaponDamage = 20;
         }
 
         public PillarOfStrength(Serial serial)

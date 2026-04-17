@@ -41,7 +41,7 @@ namespace Server.Mobiles
             this.VirtualArmor = 30;
 
             if (Core.ML && Utility.RandomDouble() < .33)
-                this.PackItem(Engines.Plants.Seed.RandomPeculiarSeed(3));
+                this.PackItem(Engines.Plants.Seed.RandomPeculiarSeed(4));
         }
 
         public TerathanWarrior(Serial serial)
@@ -63,6 +63,9 @@ namespace Server.Mobiles
                 return 4;
             }
         }
+
+        public override TribeType Tribe { get { return TribeType.Terathan; } }
+
         public override OppositionGroup OppositionGroup
         {
             get

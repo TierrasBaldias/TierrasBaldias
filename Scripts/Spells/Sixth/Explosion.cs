@@ -39,81 +39,99 @@ namespace Server.Spells.Sixth
         }
         public override void OnCast()
         {
-            this.Caster.Target = new InternalTarget(this);
+            Caster.Target = new InternalTarget(this);
         }
 
-        public void Target(Mobile m)
+        public void Target(IDamageable m)
         {
-            if (!this.Caster.CanSee(m))
+            if (Core.SA && HasDelayContext(m))
             {
-                this.Caster.SendLocalizedMessage(500237); // Target can not be seen.
+                DoHurtFizzle();
+                return;
             }
-            else if (this.Caster.CanBeHarmful(m) && this.CheckSequence())
+
+            if (!Caster.CanSee(m))
             {
-                Mobile attacker = this.Caster, defender = m;
+                Caster.SendLocalizedMessage(500237); // Target can not be seen.
+            }
+            else if (Caster.CanBeHarmful(m) && CheckSequence())
+            {
+                Mobile attacker = Caster;
 
-                SpellHelper.Turn(this.Caster, m);
+                SpellHelper.Turn(Caster, m);
 
-                SpellHelper.CheckReflect((int)this.Circle, this.Caster, ref m);
+                SpellHelper.CheckReflect((int)Circle, Caster, ref m);
 
-                InternalTimer t = new InternalTimer(this, attacker, defender, m);
+                InternalTimer t = new InternalTimer(this, attacker, m);
                 t.Start();
             }
 
-            this.FinishSequence();
+            FinishSequence();
         }
 
         private class InternalTimer : Timer
         {
             private readonly MagerySpell m_Spell;
-            private readonly Mobile m_Target;
+            private readonly IDamageable m_Target;
             private readonly Mobile m_Attacker;
-            private readonly Mobile m_Defender;
-            public InternalTimer(MagerySpell spell, Mobile attacker, Mobile defender, Mobile target)
+
+            public InternalTimer(MagerySpell spell, Mobile attacker, IDamageable target)
                 : base(TimeSpan.FromSeconds(Core.AOS ? 3.0 : 2.5))
             {
-                this.m_Spell = spell;
-                this.m_Attacker = attacker;
-                this.m_Defender = defender;
-                this.m_Target = target;
+                m_Spell = spell;
+                m_Attacker = attacker;
+                m_Target = target;
 
-                if (this.m_Spell != null)
-                    this.m_Spell.StartDelayedDamageContext(attacker, this);
+                if (m_Spell != null)
+                    m_Spell.StartDelayedDamageContext(attacker, this);
 
-                this.Priority = TimerPriority.FiftyMS;
+                Priority = TimerPriority.FiftyMS;
             }
 
             protected override void OnTick()
             {
-                if (this.m_Attacker.HarmfulCheck(this.m_Defender))
+                Mobile defender = m_Target as Mobile;
+
+                if (m_Attacker.HarmfulCheck(m_Target))
                 {
-                    double damage;
+                    double damage = 0;
 
                     if (Core.AOS)
                     {
-                        damage = this.m_Spell.GetNewAosDamage(40, 1, 5, this.m_Defender);
+                        damage = m_Spell.GetNewAosDamage(40, 1, 5, m_Target);
                     }
-                    else
+                    else if (defender != null)
                     {
                         damage = Utility.Random(23, 22);
 
-                        if (this.m_Spell.CheckResisted(this.m_Target))
+                        if (m_Spell.CheckResisted(defender))
                         {
                             damage *= 0.75;
 
-                            this.m_Target.SendLocalizedMessage(501783); // You feel yourself resisting magical energy.
+                            defender.SendLocalizedMessage(501783); // You feel yourself resisting magical energy.
                         }
 
-                        damage *= this.m_Spell.GetDamageScalar(this.m_Target);
+                        damage *= m_Spell.GetDamageScalar(defender);
                     }
 
-                    this.m_Target.FixedParticles(0x36BD, 20, 10, 5044, EffectLayer.Head);
-                    this.m_Target.PlaySound(0x307);
+                    if (defender != null)
+                    {
+                        defender.FixedParticles(0x36BD, 20, 10, 5044, EffectLayer.Head);
+                        defender.PlaySound(0x307);
+                    }
+                    else
+                    {
+                        Effects.SendLocationParticles(m_Target, 0x36BD, 20, 10, 5044);
+                        Effects.PlaySound(m_Target.Location, m_Target.Map, 0x307);
+                    }
 
-                    SpellHelper.Damage(this.m_Spell, this.m_Target, damage, 0, 100, 0, 0, 0);
+                    if (damage > 0)
+                    {
+                        SpellHelper.Damage(m_Spell, m_Target, damage, 0, 100, 0, 0, 0);
+                    }
 
-                    if (this.m_Spell != null)
-                        this.m_Spell.RemoveDelayedDamageContext(this.m_Attacker);
+                    if (m_Spell != null)
+                        m_Spell.RemoveDelayedDamageContext(m_Attacker);
                 }
             }
         }
@@ -124,18 +142,18 @@ namespace Server.Spells.Sixth
             public InternalTarget(ExplosionSpell owner)
                 : base(Core.ML ? 10 : 12, false, TargetFlags.Harmful)
             {
-                this.m_Owner = owner;
+                m_Owner = owner;
             }
 
             protected override void OnTarget(Mobile from, object o)
             {
-                if (o is Mobile)
-                    this.m_Owner.Target((Mobile)o);
+                if (o is IDamageable)
+                    m_Owner.Target((IDamageable)o);
             }
 
             protected override void OnTargetFinish(Mobile from)
             {
-                this.m_Owner.FinishSequence();
+                m_Owner.FinishSequence();
             }
         }
     }

@@ -16,8 +16,12 @@ namespace Server.Engines.CannedEvil
         Corrupt,
         #region Stygian Abyss
         Terror,
-        Infuse
+        Infuse,
         #endregion
+        #region TOL
+        DragonTurtle,
+        #endregion
+        Khaldun
     }
 
     public class ChampionSpawnInfo
@@ -31,37 +35,37 @@ namespace Server.Engines.CannedEvil
         {
             get
             {
-                return this.m_Name;
+                return m_Name;
             }
         }
         public Type Champion
         {
             get
             {
-                return this.m_Champion;
+                return m_Champion;
             }
         }
         public Type[][] SpawnTypes
         {
             get
             {
-                return this.m_SpawnTypes;
+                return m_SpawnTypes;
             }
         }
         public string[] LevelNames
         {
             get
             {
-                return this.m_LevelNames;
+                return m_LevelNames;
             }
         }
 
         public ChampionSpawnInfo(string name, Type champion, string[] levelNames, Type[][] spawnTypes)
         {
-            this.m_Name = name;
-            this.m_Champion = champion;
-            this.m_LevelNames = levelNames;
-            this.m_SpawnTypes = spawnTypes;
+            m_Name = name;
+            m_Champion = champion;
+            m_LevelNames = levelNames;
+            m_SpawnTypes = spawnTypes;
         }
 
         public static ChampionSpawnInfo[] Table
@@ -130,7 +134,7 @@ namespace Server.Engines.CannedEvil
                 new Type[] { typeof(Pixie), typeof(ShadowWisp) },
                 new Type[] { typeof(Centaur), typeof(MLDryad) },
                 new Type[] { typeof(Satyr), typeof(CuSidhe) },
-                new Type[] { typeof(FerelTreefellow), typeof(RagingGrizzlyBear) }
+                new Type[] { typeof(FeralTreefellow), typeof(RagingGrizzlyBear) }
             }),
             new ChampionSpawnInfo("Corrupt", typeof(Ilhenir), new string[] { "Cleanser", "Expunger", "Depurator" }, new Type[][]
             { // Corrupt
@@ -139,7 +143,7 @@ namespace Server.Engines.CannedEvil
                 new Type[] { typeof(PlagueBeastLord), typeof(InterredGrizzle) },
                 new Type[] { typeof(FetidEssence), typeof(PestilentBandage) }
             }),
-            #region SA
+
             new ChampionSpawnInfo("Terror", typeof(AbyssalInfernal), new string[] { "Banisher", "Enforcer", "Eradicator" }, new Type[][]
             { // Terror
                 new Type[] { typeof(HordeMinion), typeof(ChaosDaemon) }, // Level 1
@@ -153,8 +157,23 @@ namespace Server.Engines.CannedEvil
                 new Type[] { typeof(FleshGolem), typeof(DarkWisp) }, // Level 2
                 new Type[] { typeof(UndeadGargoyle), typeof(Wight) }, // Level 3
                 new Type[] { typeof(SkeletalDrake), typeof(DreamWraith) }// Level 4
-            })
-            #endregion
+            }),
+
+            new ChampionSpawnInfo( "Valley", typeof( DragonTurtle ), new string[]{ "Explorer", "Huntsman", "Msafiri", } , new Type[][]
+            {																											// DragonTurtle
+				new Type[]{ typeof( MyrmidexDrone ), typeof( MyrmidexLarvae ) },										// Level 1
+				new Type[]{ typeof( SilverbackGorilla ), typeof( WildTiger ) },											// Level 2
+				new Type[]{ typeof( GreaterPhoenix  ), typeof( Infernus ) },										    // Level 3
+				new Type[]{ typeof( Dimetrosaur ), typeof( Allosaurus ) }											    // Level 4
+			} ),
+
+            new ChampionSpawnInfo( "Khaldun", typeof( KhalAnkur ), new string[]{ "Banisher", "Enforcer", "Eradicator" } , new Type[][]
+            {																					                        // KhalAnkur
+				new Type[]{ typeof( SkelementalKnight ), typeof( KhaldunBlood ) },										// Level 1
+				new Type[]{ typeof( SkelementalMage ), typeof( Viscera ) },											    // Level 2
+				new Type[]{ typeof( CultistAmbusher  ), typeof( ShadowFiend ) },										// Level 3
+				new Type[]{ typeof( KhalAnkurWarriors ) }											                    // Level 4
+			} ),
         };
 
         public static ChampionSpawnInfo GetInfo(ChampionSpawnType type)

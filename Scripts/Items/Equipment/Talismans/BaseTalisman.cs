@@ -7,6 +7,8 @@ using Server.Spells.Fourth;
 using Server.Spells.Necromancy;
 using Server.Spells.Second;
 using Server.Targeting;
+using Server.Engines.Craft;
+using Server.Factions;
 
 namespace Server.Items
 {
@@ -19,8 +21,60 @@ namespace Server.Items
         Wildfire = 2843
     }
 
-    public class BaseTalisman : Item, IWearableDurability
+    public enum TalismanSkill
     {
+        Alchemy,
+        Blacksmithy,
+        Fletching,
+        Carpentry,
+        Cartography,
+        Cooking,
+        Glassblowing,
+        Inscription,
+        Masonry,
+        Tailoring,
+        Tinkering
+    }
+
+    public class BaseTalisman : Item, IWearableDurability, IVvVItem, IOwnerRestricted, ITalismanProtection, ITalismanKiller, IFactionItem, IArtifact
+    {
+        #region Factions
+        private FactionItem m_FactionState;
+
+        public FactionItem FactionItemState
+        {
+            get { return m_FactionState; }
+            set
+            {
+                m_FactionState = value;
+            }
+        }
+        #endregion
+
+        private bool _VvVItem;
+        private Mobile _Owner;
+        private string _OwnerName;
+
+        [CommandProperty(AccessLevel.GameMaster)]
+        public bool IsVvVItem
+        {
+            get { return _VvVItem; }
+            set { _VvVItem = value; InvalidateProperties(); }
+        }
+
+        [CommandProperty(AccessLevel.GameMaster)]
+        public Mobile Owner
+        {
+            get { return _Owner; }
+            set { _Owner = value; if (_Owner != null) _OwnerName = _Owner.Name; InvalidateProperties(); }
+        }
+
+        public virtual string OwnerName
+        {
+            get { return _OwnerName; }
+            set { _OwnerName = value; InvalidateProperties(); }
+        }
+
         public static void Initialize()
         {
             CommandSystem.Register("RandomTalisman", AccessLevel.GameMaster, new CommandEventHandler(RandomTalisman_OnCommand));
@@ -46,6 +100,18 @@ namespace Server.Items
                 return 1071023;
             }
         }// Talisman
+
+        public override bool DisplayWeight
+        {
+            get
+            {
+                if (IsVvVItem)
+                    return true;
+
+                return base.DisplayWeight;
+            }
+        }
+
         public virtual bool ForceShowName
         {
             get
@@ -54,10 +120,11 @@ namespace Server.Items
             }
         }// used to override default summoner/removal name
 
+        public virtual int ArtifactRarity { get { return 0; } }
+
         private int m_MaxHitPoints;
         private int m_HitPoints;
 
-        //private readonly int m_KarmaLoss;
         private int m_MaxCharges;
         private int m_Charges;
         private int m_MaxChargeTime;
@@ -69,12 +136,12 @@ namespace Server.Items
         {
             get
             {
-                return this.m_AosAttributes.IncreasedKarmaLoss;
+                return m_AosAttributes.IncreasedKarmaLoss;
             }
             set
             {
-                this.m_AosAttributes.IncreasedKarmaLoss = value;
-                this.InvalidateProperties();
+                m_AosAttributes.IncreasedKarmaLoss = value;
+                InvalidateProperties();
             }
         }
 
@@ -83,12 +150,12 @@ namespace Server.Items
         {
             get
             {
-                return this.m_MaxCharges;
+                return m_MaxCharges;
             }
             set
             {
-                this.m_MaxCharges = value;
-                this.InvalidateProperties();
+                m_MaxCharges = value;
+                InvalidateProperties();
             }
         }
 
@@ -97,16 +164,16 @@ namespace Server.Items
         {
             get
             {
-                return this.m_Charges;
+                return m_Charges;
             }
             set
             {
-                this.m_Charges = value;
+                m_Charges = value;
 
-                if (this.m_ChargeTime > 0)
-                    this.StartTimer();
+                if (m_ChargeTime > 0)
+                    StartTimer();
 
-                this.InvalidateProperties();
+                InvalidateProperties();
             }
         }
 
@@ -115,12 +182,12 @@ namespace Server.Items
         {
             get
             {
-                return this.m_MaxChargeTime;
+                return m_MaxChargeTime;
             }
             set
             {
-                this.m_MaxChargeTime = value;
-                this.InvalidateProperties();
+                m_MaxChargeTime = value;
+                InvalidateProperties();
             }
         }
 
@@ -129,12 +196,12 @@ namespace Server.Items
         {
             get
             {
-                return this.m_ChargeTime;
+                return m_ChargeTime;
             }
             set
             {
-                this.m_ChargeTime = value;
-                this.InvalidateProperties();
+                m_ChargeTime = value;
+                InvalidateProperties();
             }
         }
 
@@ -143,12 +210,12 @@ namespace Server.Items
         {
             get
             {
-                return this.m_Blessed;
+                return m_Blessed;
             }
             set
             {
-                this.m_Blessed = value;
-                this.InvalidateProperties();
+                m_Blessed = value;
+                InvalidateProperties();
             }
         }
 
@@ -157,12 +224,16 @@ namespace Server.Items
         {
             get
             {
-                return this.m_MaxHitPoints;
+                return m_MaxHitPoints;
             }
             set
             {
-                this.m_MaxHitPoints = value;
-                this.InvalidateProperties();
+                m_MaxHitPoints = value;
+
+                if (m_MaxHitPoints > 255)
+                    m_MaxHitPoints = 255;
+
+                InvalidateProperties();
             }
         }
 
@@ -171,20 +242,20 @@ namespace Server.Items
         {
             get
             {
-                return this.m_HitPoints;
+                return m_HitPoints;
             }
             set
             {
-                if (value != this.m_HitPoints && this.MaxHitPoints > 0)
+                if (value != m_HitPoints && MaxHitPoints > 0)
                 {
-                    this.m_HitPoints = value;
+                    m_HitPoints = value;
 
-                    if (this.m_HitPoints < 0)
-                        this.Delete();
-                    else if (this.m_HitPoints > this.MaxHitPoints)
-                        this.m_HitPoints = this.MaxHitPoints;
+                    if (m_HitPoints < 0)
+                        Delete();
+                    else if (m_HitPoints > MaxHitPoints)
+                        m_HitPoints = MaxHitPoints;
 
-                    this.InvalidateProperties();
+                    InvalidateProperties();
                 }
             }
         }
@@ -205,8 +276,8 @@ namespace Server.Items
             }
         }
 
-        public virtual bool CanRepair { get { return this is Server.Engines.Craft.IRepairable; } }
-        public virtual bool CanFortify { get { return CanRepair; } }
+        public virtual bool CanRepair { get { return true; } }
+        public virtual bool CanFortify { get { return NegativeAttributes.Antique < 4; } }
 
         #region Slayer
         private TalismanSlayerName m_Slayer;
@@ -216,12 +287,12 @@ namespace Server.Items
         {
             get
             {
-                return this.m_Slayer;
+                return m_Slayer;
             }
             set
             {
-                this.m_Slayer = value;
-                this.InvalidateProperties();
+                m_Slayer = value;
+                InvalidateProperties();
             }
         }
         #endregion
@@ -236,12 +307,12 @@ namespace Server.Items
         {
             get
             {
-                return this.m_Summoner;
+                return m_Summoner;
             }
             set
             {
-                this.m_Summoner = value;
-                this.InvalidateProperties();
+                m_Summoner = value;
+                InvalidateProperties();
             }
         }
 
@@ -250,12 +321,12 @@ namespace Server.Items
         {
             get
             {
-                return this.m_Removal;
+                return m_Removal;
             }
             set
             {
-                this.m_Removal = value;
-                this.InvalidateProperties();
+                m_Removal = value;
+                InvalidateProperties();
             }
         }
         #endregion
@@ -269,12 +340,12 @@ namespace Server.Items
         {
             get
             {
-                return this.m_Protection;
+                return m_Protection;
             }
             set
             {
-                this.m_Protection = value;
-                this.InvalidateProperties();
+                m_Protection = value;
+                InvalidateProperties();
             }
         }
 
@@ -283,33 +354,39 @@ namespace Server.Items
         {
             get
             {
-                return this.m_Killer;
+                return m_Killer;
             }
             set
             {
-                this.m_Killer = value;
-                this.InvalidateProperties();
+                m_Killer = value;
+                InvalidateProperties();
             }
         }
         #endregion
 
         #region Craft bonuses
-        private SkillName m_Skill;
+        private TalismanSkill m_Skill;
         private int m_SuccessBonus;
         private int m_ExceptionalBonus;
 
         [CommandProperty(AccessLevel.GameMaster)]
-        public SkillName Skill
+        public TalismanSkill Skill
         {
             get
             {
-                return this.m_Skill;
+                return m_Skill;
             }
             set
             {
-                this.m_Skill = value;
-                this.InvalidateProperties();
+                m_Skill = value;
+                InvalidateProperties();
             }
+        }
+
+        [CommandProperty(AccessLevel.GameMaster)]
+        public SkillName CraftSkill
+        {
+            get { return GetMainSkill(); }
         }
 
         [CommandProperty(AccessLevel.GameMaster)]
@@ -317,12 +394,12 @@ namespace Server.Items
         {
             get
             {
-                return this.m_SuccessBonus;
+                return m_SuccessBonus;
             }
             set
             {
-                this.m_SuccessBonus = value;
-                this.InvalidateProperties();
+                m_SuccessBonus = value;
+                InvalidateProperties();
             }
         }
 
@@ -331,12 +408,12 @@ namespace Server.Items
         {
             get
             {
-                return this.m_ExceptionalBonus;
+                return m_ExceptionalBonus;
             }
             set
             {
-                this.m_ExceptionalBonus = value;
-                this.InvalidateProperties();
+                m_ExceptionalBonus = value;
+                InvalidateProperties();
             }
         }
         #endregion
@@ -344,13 +421,14 @@ namespace Server.Items
         #region AOS bonuses
         private AosAttributes m_AosAttributes;
         private AosSkillBonuses m_AosSkillBonuses;
+        private NegativeAttributes m_NegativeAttributes;
 
         [CommandProperty(AccessLevel.GameMaster)]
         public AosAttributes Attributes
         {
             get
             {
-                return this.m_AosAttributes;
+                return m_AosAttributes;
             }
             set
             {
@@ -362,13 +440,39 @@ namespace Server.Items
         {
             get
             {
-                return this.m_AosSkillBonuses;
+                return m_AosSkillBonuses;
+            }
+            set
+            {
+            }
+        }
+
+        [CommandProperty(AccessLevel.GameMaster)]
+        public NegativeAttributes NegativeAttributes
+        {
+            get
+            {
+                return m_NegativeAttributes;
             }
             set
             {
             }
         }
         #endregion
+
+        private SAAbsorptionAttributes m_SAAbsorptionAttributes;
+
+        [CommandProperty(AccessLevel.GameMaster)]
+        public SAAbsorptionAttributes SAAbsorptionAttributes
+        {
+            get
+            {
+                return m_SAAbsorptionAttributes;
+            }
+            set
+            {
+            }
+        }
 
         public BaseTalisman()
             : this(GetRandomItemID())
@@ -378,16 +482,18 @@ namespace Server.Items
         public BaseTalisman(int itemID)
             : base(itemID)
         {
-            this.Layer = Layer.Talisman;
-            this.Weight = 1.0;
+            Layer = Layer.Talisman;
+            Weight = 1.0;
 
-            this.m_HitPoints = this.m_MaxHitPoints = Utility.RandomMinMax(this.InitMinHits, this.InitMaxHits);
+            m_HitPoints = m_MaxHitPoints = Utility.RandomMinMax(InitMinHits, InitMaxHits);
 
-            this.m_Protection = new TalismanAttribute();
-            this.m_Killer = new TalismanAttribute();
-            this.m_Summoner = new TalismanAttribute();
-            this.m_AosAttributes = new AosAttributes(this);
-            this.m_AosSkillBonuses = new AosSkillBonuses(this);
+            m_Protection = new TalismanAttribute();
+            m_Killer = new TalismanAttribute();
+            m_Summoner = new TalismanAttribute();
+            m_AosAttributes = new AosAttributes(this);
+            m_AosSkillBonuses = new AosSkillBonuses(this);
+            m_SAAbsorptionAttributes = new SAAbsorptionAttributes(this);
+            m_NegativeAttributes = new NegativeAttributes(this);
         }
 
         public BaseTalisman(Serial serial)
@@ -400,36 +506,23 @@ namespace Server.Items
             if (m_MaxHitPoints == 0)
                 return damage;
 
-            if (25 > Utility.Random(100)) // 25% chance to lower durability
+            int chance = m_NegativeAttributes.Antique > 0 ? 50 : 25;
+            if (chance > Utility.Random(100)) // 25% chance to lower durability
             {
-                int wear = Utility.Random(2);
-
-                if (wear > 0)
+                if (m_HitPoints >= 1)
                 {
-                    if (m_HitPoints >= wear)
-                    {
-                        HitPoints -= wear;
-                        wear = 0;
-                    }
-                    else
-                    {
-                        wear -= HitPoints;
-                        HitPoints = 0;
-                    }
+                    HitPoints--;
+                }
+                else if (m_MaxHitPoints > 0)
+                {
+                    MaxHitPoints--;
 
-                    if (wear > 0)
-                    {
-                        if (m_MaxHitPoints > wear)
-                        {
-                            MaxHitPoints -= wear;
+                    if (Parent is Mobile)
+                        ((Mobile)Parent).LocalOverheadMessage(Server.Network.MessageType.Regular, 0x3B2, 1061121); // Your equipment is severely damaged.
 
-                            if (Parent is Mobile)
-                                ((Mobile)Parent).LocalOverheadMessage(Server.Network.MessageType.Regular, 0x3B2, 1061121); // Your equipment is severely damaged.
-                        }
-                        else
-                        {
-                            Delete();
-                        }
+                    if (m_MaxHitPoints == 0)
+                    {
+                        Delete();
                     }
                 }
             }
@@ -452,16 +545,46 @@ namespace Server.Items
             if (talisman == null)
                 return;
 
-            talisman.m_Summoner = new TalismanAttribute(this.m_Summoner);
-            talisman.m_Protection = new TalismanAttribute(this.m_Protection);
-            talisman.m_Killer = new TalismanAttribute(this.m_Killer);
-            talisman.m_AosAttributes = new AosAttributes(newItem, this.m_AosAttributes);
-            talisman.m_AosSkillBonuses = new AosSkillBonuses(newItem, this.m_AosSkillBonuses);
+            talisman.m_Summoner = new TalismanAttribute(m_Summoner);
+            talisman.m_Protection = new TalismanAttribute(m_Protection);
+            talisman.m_Killer = new TalismanAttribute(m_Killer);
+            talisman.m_AosAttributes = new AosAttributes(newItem, m_AosAttributes);
+            talisman.m_AosSkillBonuses = new AosSkillBonuses(newItem, m_AosSkillBonuses);
+            talisman.m_SAAbsorptionAttributes = new SAAbsorptionAttributes(newItem, m_SAAbsorptionAttributes);
+            talisman.m_NegativeAttributes = new NegativeAttributes(newItem, m_NegativeAttributes);
+
+            base.OnAfterDuped(newItem);
         }
 
         public override bool CanEquip(Mobile from)
         {
-            if (this.BlessedFor != null && this.BlessedFor != from)
+            if (from.IsPlayer())
+            {
+                if (_Owner != null && _Owner != from)
+                {
+                    from.SendLocalizedMessage(501023); // You must be the owner to use this item.
+                    return false;
+                }
+
+                if (this is IAccountRestricted && ((IAccountRestricted)this).Account != null)
+                {
+                    Accounting.Account acct = from.Account as Accounting.Account;
+
+                    if (acct == null || acct.Username != ((IAccountRestricted)this).Account)
+                    {
+                        from.SendLocalizedMessage(1071296); // This item is Account Bound and your character is not bound to it. You cannot use this item.
+                        return false;
+                    }
+                }
+
+                if (IsVvVItem && !Engines.VvV.ViceVsVirtueSystem.IsVvV(from))
+                {
+                    from.SendLocalizedMessage(1155496); // This item can only be used by VvV participants!
+                    return false;
+                }
+            }
+
+            if (BlessedFor != null && BlessedFor != from)
             {
                 from.SendLocalizedMessage(1010437); // You are not the owner.
                 return false;
@@ -476,23 +599,23 @@ namespace Server.Items
             {
                 Mobile from = (Mobile)parent;
 
-                this.m_AosSkillBonuses.AddTo(from);
-                this.m_AosAttributes.AddStatBonuses(from);
+                m_AosSkillBonuses.AddTo(from);
+                m_AosAttributes.AddStatBonuses(from);
 
-                if (this.m_Blessed && this.BlessedFor == null)
+                if (m_Blessed && BlessedFor == null)
                 {
-                    this.BlessedFor = from;
-                    this.LootType = LootType.Blessed;
+                    BlessedFor = from;
+                    LootType = LootType.Blessed;
                 }
 
-                if (this.m_ChargeTime > 0)
+                if (m_ChargeTime > 0)
                 {
-                    this.m_ChargeTime = this.m_MaxChargeTime;
-                    this.StartTimer();
+                    m_ChargeTime = m_MaxChargeTime;
+                    StartTimer();
                 }
             }
 
-            this.InvalidateProperties();
+            InvalidateProperties();
         }
 
         public override void OnRemoved(object parent)
@@ -501,37 +624,38 @@ namespace Server.Items
             {
                 Mobile from = (Mobile)parent;
 
-                this.m_AosSkillBonuses.Remove();
-                this.m_AosAttributes.RemoveStatBonuses(from);
+                m_AosSkillBonuses.Remove();
+                m_AosAttributes.RemoveStatBonuses(from);
 
-                if (this.m_Creature != null && !this.m_Creature.Deleted)
+                if (m_Creature != null && !m_Creature.Deleted)
                 {
-                    Effects.SendLocationParticles(EffectItem.Create(this.m_Creature.Location, this.m_Creature.Map, EffectItem.DefaultDuration), 0x3728, 8, 20, 5042);
-                    Effects.PlaySound(this.m_Creature, this.m_Creature.Map, 0x201);
+                    Effects.SendLocationParticles(EffectItem.Create(m_Creature.Location, m_Creature.Map, EffectItem.DefaultDuration), 0x3728, 8, 20, 5042);
+                    Effects.PlaySound(m_Creature, m_Creature.Map, 0x201);
 
-                    this.m_Creature.Delete();
+                    m_Creature.Delete();
+                    m_Creature = null;
                 }
 
-                this.StopTimer();
+                StopTimer();
             }
 
-            this.InvalidateProperties();
+            InvalidateProperties();
         }
 
         public override void OnDoubleClick(Mobile from)
         {
             if (from.Talisman != this)
                 from.SendLocalizedMessage(502641); // You must equip this item to use it.
-            else if (this.m_ChargeTime > 0)
-                from.SendLocalizedMessage(1074882, this.m_ChargeTime.ToString()); // You must wait ~1_val~ seconds for this to recharge.
-            else if (this.m_Charges == 0 && this.m_MaxCharges > 0)
+            else if (m_ChargeTime > 0)
+                from.SendLocalizedMessage(1074882, m_ChargeTime.ToString()); // You must wait ~1_val~ seconds for this to recharge.
+            else if (m_Charges == 0 && m_MaxCharges > 0)
                 from.SendLocalizedMessage(1042544); // This item is out of charges.
             else
             {
-                Type type = this.GetSummoner();
+                Type type = GetSummoner();
 
-                if (this.m_Summoner != null && !this.m_Summoner.IsEmpty)
-                    type = this.m_Summoner.Type;
+                if (m_Summoner != null && !m_Summoner.IsEmpty)
+                    type = m_Summoner.Type;
 
                 if (type != null)
                 {
@@ -551,12 +675,12 @@ namespace Server.Items
                         Item item = (Item)obj;
                         int count = 1;
 
-                        if (this.m_Summoner != null && this.m_Summoner.Amount > 1)
+                        if (m_Summoner != null && m_Summoner.Amount > 1)
                         {
                             if (item.Stackable)
-                                item.Amount = this.m_Summoner.Amount;
+                                item.Amount = m_Summoner.Amount;
                             else
-                                count = this.m_Summoner.Amount;
+                                count = m_Summoner.Amount;
                         }
 
                         if (from.Backpack == null || count * item.Weight > from.Backpack.MaxWeight ||
@@ -582,14 +706,14 @@ namespace Server.Items
                             from.SendLocalizedMessage(1075001); // You have been given some ingots.
                         else if (item is Bandage)
                             from.SendLocalizedMessage(1075002); // You have been given some clean bandages.
-                        else if (this.m_Summoner != null && this.m_Summoner.Name != null)
-                            from.SendLocalizedMessage(1074853, this.m_Summoner.Name.ToString()); // You have been given ~1_name~
+                        else if (m_Summoner != null && m_Summoner.Name != null)
+                            from.SendLocalizedMessage(1074853, m_Summoner.Name.ToString()); // You have been given ~1_name~
                     }
                     else if (obj is BaseCreature)
                     {
                         BaseCreature mob = (BaseCreature)obj;
 
-                        if ((this.m_Creature != null && !this.m_Creature.Deleted) || from.Followers + mob.ControlSlots > from.FollowersMax)
+                        if ((m_Creature != null && !m_Creature.Deleted) || from.Followers + mob.ControlSlots > from.FollowersMax)
                         {
                             from.SendLocalizedMessage(1074270); // You have too many followers to summon another one.
                             mob.Delete();
@@ -602,13 +726,13 @@ namespace Server.Items
                         mob.Summoned = false;
                         mob.ControlOrder = OrderType.Friend;
 
-                        this.m_Creature = mob;
+                        m_Creature = mob;
                     }
 
-                    this.OnAfterUse(from);
+                    OnAfterUse(from);
                 }
 
-                if (this.m_Removal != TalismanRemoval.None)
+                if (m_Removal != TalismanRemoval.None)
                 {
                     from.Target = new TalismanTarget(this);
                 }
@@ -617,147 +741,214 @@ namespace Server.Items
 
         public override void AddNameProperty(ObjectPropertyList list)
         {
-            if (this.ForceShowName)
+            if (ForceShowName)
                 base.AddNameProperty(list);
-            else if (this.m_Summoner != null && !this.m_Summoner.IsEmpty)
-                list.Add(1072400, this.m_Summoner.Name != null ? this.m_Summoner.Name.ToString() : "Unknown"); // Talisman of ~1_name~ Summoning
-            else if (this.m_Removal != TalismanRemoval.None)
-                list.Add(1072389, "#" + (1072000 + (int)this.m_Removal)); // Talisman of ~1_name~
+            else if (m_Summoner != null && !m_Summoner.IsEmpty)
+                list.Add(1072400, m_Summoner.Name != null ? m_Summoner.Name.ToString() : "Unknown"); // Talisman of ~1_name~ Summoning
+            else if (m_Removal != TalismanRemoval.None)
+                list.Add(1072389, "#" + (1072000 + (int)m_Removal)); // Talisman of ~1_name~
             else
                 base.AddNameProperty(list);
+        }
+
+        public override void AddWeightProperty(ObjectPropertyList list)
+        {
+            if (OwnerName != null)
+                list.Add(1153213, OwnerName);
+
+            base.AddWeightProperty(list);
+
+            if (IsVvVItem)
+                list.Add(1154937); // VvV Item
         }
 
         public override void GetProperties(ObjectPropertyList list)
         {
             base.GetProperties(list);
 
+            #region Factions
+            FactionEquipment.AddFactionProperties(this, list);
+            #endregion
+
             if(Attributes.Brittle > 0)
-                list.Add(1116209); // Brittle
+                list.Add(1116209); // Brittle           
 
-            if (this.Blessed)
+            if (Parent is Mobile && m_MaxChargeTime > 0)
             {
-                if (this.BlessedFor != null)
-                    list.Add(1072304, !String.IsNullOrEmpty(this.BlessedFor.Name) ? this.BlessedFor.Name : "Unnamed Warrior"); // Owned by ~1_name~
-                else
-                    list.Add(1072304, "Nobody"); // Owned by ~1_name~
-            }
-
-            if (this.Parent is Mobile && this.m_MaxChargeTime > 0)
-            {
-                if (this.m_ChargeTime > 0)
-                    list.Add(1074884, this.m_ChargeTime.ToString()); // Charge time left: ~1_val~
+                if (m_ChargeTime > 0)
+                    list.Add(1074884, m_ChargeTime.ToString()); // Charge time left: ~1_val~
                 else
                     list.Add(1074883); // Fully Charged
             }
 
-            if (this.m_Killer != null && !this.m_Killer.IsEmpty && this.m_Killer.Amount > 0)
-                list.Add(1072388, "{0}\t{1}", this.m_Killer.Name != null ? this.m_Killer.Name.ToString() : "Unknown", this.m_Killer.Amount); // ~1_NAME~ Killer: +~2_val~%
-
-            if (this.m_Protection != null && !this.m_Protection.IsEmpty && this.m_Protection.Amount > 0)
-                list.Add(1072387, "{0}\t{1}", this.m_Protection.Name != null ? this.m_Protection.Name.ToString() : "Unknown", this.m_Protection.Amount); // ~1_NAME~ Protection: +~2_val~%
-
-            if (this.m_ExceptionalBonus != 0)
-                list.Add(1072395, "#{0}\t{1}", AosSkillBonuses.GetLabel(this.m_Skill), this.m_ExceptionalBonus); // ~1_NAME~ Exceptional Bonus: ~2_val~%
-
-            if (this.m_SuccessBonus != 0)
-                list.Add(1072394, "#{0}\t{1}", AosSkillBonuses.GetLabel(this.m_Skill), this.m_SuccessBonus); // ~1_NAME~ Bonus: ~2_val~%
-
-            this.m_AosSkillBonuses.GetProperties(list);
-
-            int prop;
-
-            if ((prop = this.m_AosAttributes.WeaponDamage) != 0)
-                list.Add(1060401, prop.ToString()); // damage increase ~1_val~%
-
-            if ((prop = this.m_AosAttributes.DefendChance) != 0)
-                list.Add(1060408, prop.ToString()); // defense chance increase ~1_val~%
-
-            if ((prop = this.m_AosAttributes.BonusDex) != 0)
-                list.Add(1060409, prop.ToString()); // dexterity bonus ~1_val~
-
-            if ((prop = this.m_AosAttributes.EnhancePotions) != 0)
-                list.Add(1060411, prop.ToString()); // enhance potions ~1_val~%
-
-            if ((prop = this.m_AosAttributes.CastRecovery) != 0)
-                list.Add(1060412, prop.ToString()); // faster cast recovery ~1_val~
-
-            if ((prop = this.m_AosAttributes.CastSpeed) != 0)
-                list.Add(1060413, prop.ToString()); // faster casting ~1_val~
-
-            if ((prop = this.m_AosAttributes.AttackChance) != 0)
-                list.Add(1060415, prop.ToString()); // hit chance increase ~1_val~%
-
-            if ((prop = this.m_AosAttributes.BonusHits) != 0)
-                list.Add(1060431, prop.ToString()); // hit point increase ~1_val~
-
-            if ((prop = this.m_AosAttributes.BonusInt) != 0)
-                list.Add(1060432, prop.ToString()); // intelligence bonus ~1_val~
-
-            if ((prop = this.m_AosAttributes.LowerManaCost) != 0)
-                list.Add(1060433, prop.ToString()); // lower mana cost ~1_val~%
-
-            if ((prop = this.m_AosAttributes.LowerRegCost) != 0)
-                list.Add(1060434, prop.ToString()); // lower reagent cost ~1_val~%
-
-            if ((prop = this.m_AosAttributes.Luck) != 0)
-                list.Add(1060436, prop.ToString()); // luck ~1_val~
-
-            if ((prop = this.m_AosAttributes.BonusMana) != 0)
-                list.Add(1060439, prop.ToString()); // mana increase ~1_val~
-
-            if ((prop = this.m_AosAttributes.RegenMana) != 0)
-                list.Add(1060440, prop.ToString()); // mana regeneration ~1_val~
-
-            if ((prop = this.m_AosAttributes.NightSight) != 0)
-                list.Add(1060441); // night sight
-
-            if ((prop = this.m_AosAttributes.ReflectPhysical) != 0)
-                list.Add(1060442, prop.ToString()); // reflect physical damage ~1_val~%
-
-            if ((prop = this.m_AosAttributes.RegenStam) != 0)
-                list.Add(1060443, prop.ToString()); // stamina regeneration ~1_val~
-
-            if ((prop = this.m_AosAttributes.RegenHits) != 0)
-                list.Add(1060444, prop.ToString()); // hit point regeneration ~1_val~
-
-            if ((prop = this.m_AosAttributes.SpellChanneling) != 0)
-                list.Add(1060482); // spell channeling
-
-            if ((prop = this.m_AosAttributes.SpellDamage) != 0)
-                list.Add(1060483, prop.ToString()); // spell damage increase ~1_val~%
-
-            if ((prop = this.m_AosAttributes.BonusStam) != 0)
-                list.Add(1060484, prop.ToString()); // stamina increase ~1_val~
-
-            if ((prop = this.m_AosAttributes.BonusStr) != 0)
-                list.Add(1060485, prop.ToString()); // strength bonus ~1_val~
-
-            if ((prop = this.m_AosAttributes.WeaponSpeed) != 0)
-                list.Add(1060486, prop.ToString()); // swing speed increase ~1_val~%
-
-            if (Core.ML && (prop = this.m_AosAttributes.IncreasedKarmaLoss) != 0)
-                list.Add(1075210, prop.ToString()); // Increased Karma Loss ~1val~%
-
-            if (this.m_MaxCharges > 0)
-                list.Add(1060741, this.m_Charges.ToString()); // charges: ~1_val~
-
-            if (this is ManaPhasingOrb)
+            if (ArtifactRarity > 0)
+            {
+                list.Add(1061078, ArtifactRarity.ToString()); // artifact rarity ~1_val~
+            }
+			
+			if (this is ManaPhasingOrb)
                 list.Add(1116158); //Mana Phase
 
-            if (this.m_Slayer != TalismanSlayerName.None)
-            {
-                if (this.m_Slayer == TalismanSlayerName.Wolf)
-                    list.Add(1075462);
-                else if (this.m_Slayer == TalismanSlayerName.Goblin)
-                    list.Add(1095010);
-                else if (this.m_Slayer == TalismanSlayerName.Undead)
-                    list.Add(1060479);
-                else
-                    list.Add(1072503 + (int)this.m_Slayer);
-            }
+            if (m_Killer != null && !m_Killer.IsEmpty && m_Killer.Amount > 0)
+                list.Add(1072388, "{0}\t{1}", m_Killer.Name != null ? m_Killer.Name.ToString() : "Unknown", m_Killer.Amount); // ~1_NAME~ Killer: +~2_val~%
 
-            if (this.m_MaxHitPoints > 0)
-                list.Add(1060639, "{0}\t{1}", this.m_HitPoints, this.m_MaxHitPoints); // durability ~1_val~ / ~2_val~
+            if (m_Protection != null && !m_Protection.IsEmpty && m_Protection.Amount > 0)
+                list.Add(1072387, "{0}\t{1}", m_Protection.Name != null ? m_Protection.Name.ToString() : "Unknown", m_Protection.Amount); // ~1_NAME~ Protection: +~2_val~%
+
+            if (m_ExceptionalBonus != 0)
+                list.Add(1072395, "#{0}\t{1}", GetSkillLabel(), m_ExceptionalBonus); // ~1_NAME~ Exceptional Bonus: ~2_val~%
+
+            if (m_SuccessBonus != 0)
+                list.Add(1072394, "#{0}\t{1}", GetSkillLabel(), m_SuccessBonus); // ~1_NAME~ Bonus: ~2_val~%
+
+            if (m_NegativeAttributes != null)
+                m_NegativeAttributes.GetProperties(list, this);
+
+            m_AosSkillBonuses.GetProperties(list);
+
+            int prop;
+			
+			if (m_Slayer != TalismanSlayerName.None)
+            {
+                if (m_Slayer == TalismanSlayerName.Goblin)
+                    list.Add(1095010);
+                else if (m_Slayer == TalismanSlayerName.Undead)
+                    list.Add(1060479);
+                else if (m_Slayer <= TalismanSlayerName.Wolf)
+                    list.Add(1072503 + (int)m_Slayer);
+                else
+                {
+                    switch (m_Slayer)
+                    {
+                        case TalismanSlayerName.Repond: list.Add(1079750); break;
+                        case TalismanSlayerName.Elemental: list.Add(1079749); break;
+                        case TalismanSlayerName.Demon: list.Add(1079748); break;
+                        case TalismanSlayerName.Arachnid: list.Add(1079747); break;
+                        case TalismanSlayerName.Reptile: list.Add(1079751); break;
+                        case TalismanSlayerName.Fey: list.Add(1154652); break;
+                    }
+                }
+            }  
+
+			#region SA
+            if ((prop = m_SAAbsorptionAttributes.CastingFocus) != 0)
+                list.Add(1113696, prop.ToString()); // Casting Focus ~1_val~%
+
+            if ((prop = m_SAAbsorptionAttributes.EaterFire) != 0)
+                list.Add(1113593, prop.ToString()); // Fire Eater ~1_Val~%
+
+            if ((prop = m_SAAbsorptionAttributes.EaterCold) != 0)
+                list.Add(1113594, prop.ToString()); // Cold Eater ~1_Val~%
+
+            if ((prop = m_SAAbsorptionAttributes.EaterPoison) != 0)
+                list.Add(1113595, prop.ToString()); // Poison Eater ~1_Val~%
+
+            if ((prop = m_SAAbsorptionAttributes.EaterEnergy) != 0)
+                list.Add(1113596, prop.ToString()); // Energy Eater ~1_Val~%
+
+            if ((prop = m_SAAbsorptionAttributes.EaterKinetic) != 0)
+                list.Add(1113597, prop.ToString()); // Kinetic Eater ~1_Val~%
+
+            if ((prop = m_SAAbsorptionAttributes.EaterDamage) != 0)
+                list.Add(1113598, prop.ToString()); // Damage Eater ~1_Val~%
+
+            if ((prop = m_SAAbsorptionAttributes.ResonanceFire) != 0)
+                list.Add(1113691, prop.ToString()); // Fire Resonance ~1_val~%
+
+            if ((prop = m_SAAbsorptionAttributes.ResonanceCold) != 0)
+                list.Add(1113692, prop.ToString()); // Cold Resonance ~1_val~%
+
+            if ((prop = m_SAAbsorptionAttributes.ResonancePoison) != 0)
+                list.Add(1113693, prop.ToString()); // Poison Resonance ~1_val~%
+
+            if ((prop = m_SAAbsorptionAttributes.ResonanceEnergy) != 0)
+                list.Add(1113694, prop.ToString()); // Energy Resonance ~1_val~%
+
+            if ((prop = m_SAAbsorptionAttributes.ResonanceKinetic) != 0)
+                list.Add(1113695, prop.ToString()); // Kinetic Resonance ~1_val~%
+            #endregion
+            
+            if ((prop = m_AosAttributes.BonusDex) != 0)
+                list.Add(1060409, prop.ToString()); // dexterity bonus ~1_val~
+
+            if ((prop = m_AosAttributes.EnhancePotions) != 0)
+                list.Add(1060411, prop.ToString()); // enhance potions ~1_val~%
+
+            if ((prop = m_AosAttributes.CastRecovery) != 0)
+                list.Add(1060412, prop.ToString()); // faster cast recovery ~1_val~
+
+            if ((prop = m_AosAttributes.CastSpeed) != 0)
+                list.Add(1060413, prop.ToString()); // faster casting ~1_val~
+            
+            if ((prop = m_AosAttributes.BonusHits) != 0)
+                list.Add(1060431, prop.ToString()); // hit point increase ~1_val~
+
+            if ((prop = m_AosAttributes.BonusInt) != 0)
+                list.Add(1060432, prop.ToString()); // intelligence bonus ~1_val~                                
+
+            if ((prop = m_AosAttributes.BonusMana) != 0)
+                list.Add(1060439, prop.ToString()); // mana increase ~1_val~           
+
+            if ((prop = m_AosAttributes.NightSight) != 0)
+                list.Add(1060441); // night sight
+
+            if ((prop = m_AosAttributes.ReflectPhysical) != 0)
+                list.Add(1060442, prop.ToString()); // reflect physical damage ~1_val~%
+			
+			if ((prop = m_AosAttributes.BonusStr) != 0)
+                list.Add(1060485, prop.ToString()); // strength bonus ~1_val~
+			
+			if ((prop = m_AosAttributes.RegenHits) != 0)
+                list.Add(1060444, prop.ToString()); // hit point regeneration ~1_val~
+
+            if ((prop = m_AosAttributes.RegenStam) != 0)
+                list.Add(1060443, prop.ToString()); // stamina regeneration ~1_val~
+			
+			if ((prop = m_AosAttributes.RegenMana) != 0)
+                list.Add(1060440, prop.ToString()); // mana regeneration ~1_val~
+
+            if ((prop = m_AosAttributes.Luck) != 0)
+                list.Add(1060436, prop.ToString()); // luck ~1_val~
+			
+			if ((prop = m_AosAttributes.AttackChance) != 0)
+                list.Add(1060415, prop.ToString()); // hit chance increase ~1_val~%
+			
+			if ((prop = m_AosAttributes.LowerManaCost) != 0)
+                list.Add(1060433, prop.ToString()); // lower mana cost ~1_val~%
+			
+			if ((prop = m_AosAttributes.SpellDamage) != 0)
+                list.Add(1060483, prop.ToString()); // spell damage increase ~1_val~%
+			
+			if ((prop = m_AosAttributes.LowerRegCost) != 0)
+                list.Add(1060434, prop.ToString()); // lower reagent cost ~1_val~%
+         
+			if ((prop = m_AosAttributes.DefendChance) != 0)
+                list.Add(1060408, prop.ToString()); // defense chance increase ~1_val~%        
+
+            if ((prop = m_AosAttributes.BonusStam) != 0)
+                list.Add(1060484, prop.ToString()); // stamina increase ~1_val~          
+
+            if ((prop = m_AosAttributes.WeaponSpeed) != 0)
+                list.Add(1060486, prop.ToString()); // swing speed increase ~1_val~%
+			
+			if ((prop = m_AosAttributes.WeaponDamage) != 0)
+                list.Add(1060401, prop.ToString()); // damage increase ~1_val~%
+
+            if ((prop = m_AosAttributes.IncreasedKarmaLoss) != 0)
+                list.Add(1075210, prop.ToString()); // Increased Karma Loss ~1val~%                
+
+            base.AddResistanceProperties(list);
+
+            if (Blessed)
+            {
+                if (BlessedFor != null)
+                    list.Add(1072304, !String.IsNullOrEmpty(BlessedFor.Name) ? BlessedFor.Name : "Unnamed Warrior"); // Owned by ~1_name~
+                else
+                    list.Add(1072304, "Nobody"); // Owned by ~1_name~
+            }          
+
+            if (m_MaxHitPoints > 0)
+                list.Add(1060639, "{0}\t{1}", m_HitPoints, m_MaxHitPoints); // durability ~1_val~ / ~2_val~
         }
 
         private static void SetSaveFlag(ref SaveFlag flags, SaveFlag toSet, bool setIf)
@@ -792,78 +983,94 @@ namespace Server.Items
             ChargeTime = 0x00004000,
             Blessed = 0x00008000,
             Slayer = 0x00010000,
+            SAAbsorptionAttributes = 0x00020000,
+            NegativeAttributes = 0x00040000,
         }
 
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);
 
-            writer.Write((int)1); // version
+            writer.Write((int)4); // version
+
+            writer.Write(m_Creature);
+
+            writer.Write(_VvVItem);
+            writer.Write(_Owner);
+            writer.Write(_OwnerName);
 
             writer.Write(m_MaxHitPoints);
             writer.Write(m_HitPoints);
 
             SaveFlag flags = SaveFlag.None;
 
-            SetSaveFlag(ref flags, SaveFlag.Attributes, !this.m_AosAttributes.IsEmpty);
-            SetSaveFlag(ref flags, SaveFlag.SkillBonuses, !this.m_AosSkillBonuses.IsEmpty);
-            SetSaveFlag(ref flags, SaveFlag.Protection, this.m_Protection != null && !this.m_Protection.IsEmpty);
-            SetSaveFlag(ref flags, SaveFlag.Killer, this.m_Killer != null && !this.m_Killer.IsEmpty);
-            SetSaveFlag(ref flags, SaveFlag.Summoner, this.m_Summoner != null && !this.m_Summoner.IsEmpty);
-            SetSaveFlag(ref flags, SaveFlag.Removal, this.m_Removal != TalismanRemoval.None);
-            SetSaveFlag(ref flags, SaveFlag.Skill, (int)this.m_Skill != 0);
-            SetSaveFlag(ref flags, SaveFlag.SuccessBonus, this.m_SuccessBonus != 0);
-            SetSaveFlag(ref flags, SaveFlag.ExceptionalBonus, this.m_ExceptionalBonus != 0);
-            SetSaveFlag(ref flags, SaveFlag.MaxCharges, this.m_MaxCharges != 0);
-            SetSaveFlag(ref flags, SaveFlag.Charges, this.m_Charges != 0);
-            SetSaveFlag(ref flags, SaveFlag.MaxChargeTime, this.m_MaxChargeTime != 0);
-            SetSaveFlag(ref flags, SaveFlag.ChargeTime, this.m_ChargeTime != 0);
-            SetSaveFlag(ref flags, SaveFlag.Blessed, this.m_Blessed);
-            SetSaveFlag(ref flags, SaveFlag.Slayer, this.m_Slayer != TalismanSlayerName.None);
+            SetSaveFlag(ref flags, SaveFlag.Attributes, !m_AosAttributes.IsEmpty);
+            SetSaveFlag(ref flags, SaveFlag.SkillBonuses, !m_AosSkillBonuses.IsEmpty);
+            SetSaveFlag(ref flags, SaveFlag.Protection, m_Protection != null && !m_Protection.IsEmpty);
+            SetSaveFlag(ref flags, SaveFlag.Killer, m_Killer != null && !m_Killer.IsEmpty);
+            SetSaveFlag(ref flags, SaveFlag.Summoner, m_Summoner != null && !m_Summoner.IsEmpty);
+            SetSaveFlag(ref flags, SaveFlag.Removal, m_Removal != TalismanRemoval.None);
+            SetSaveFlag(ref flags, SaveFlag.Skill, (int)m_Skill != 0);
+            SetSaveFlag(ref flags, SaveFlag.SuccessBonus, m_SuccessBonus != 0);
+            SetSaveFlag(ref flags, SaveFlag.ExceptionalBonus, m_ExceptionalBonus != 0);
+            SetSaveFlag(ref flags, SaveFlag.MaxCharges, m_MaxCharges != 0);
+            SetSaveFlag(ref flags, SaveFlag.Charges, m_Charges != 0);
+            SetSaveFlag(ref flags, SaveFlag.MaxChargeTime, m_MaxChargeTime != 0);
+            SetSaveFlag(ref flags, SaveFlag.ChargeTime, m_ChargeTime != 0);
+            SetSaveFlag(ref flags, SaveFlag.Blessed, m_Blessed);
+            SetSaveFlag(ref flags, SaveFlag.Slayer, m_Slayer != TalismanSlayerName.None);
+            SetSaveFlag(ref flags, SaveFlag.SAAbsorptionAttributes, !m_SAAbsorptionAttributes.IsEmpty);
+            SetSaveFlag(ref flags, SaveFlag.NegativeAttributes, !m_NegativeAttributes.IsEmpty);
 
             writer.WriteEncodedInt((int)flags);
 
             if (GetSaveFlag(flags, SaveFlag.Attributes))
-                this.m_AosAttributes.Serialize(writer);
+                m_AosAttributes.Serialize(writer);
 
             if (GetSaveFlag(flags, SaveFlag.SkillBonuses))
-                this.m_AosSkillBonuses.Serialize(writer);
+                m_AosSkillBonuses.Serialize(writer);
 
             if (GetSaveFlag(flags, SaveFlag.Protection))
-                this.m_Protection.Serialize(writer);
+                m_Protection.Serialize(writer);
 
             if (GetSaveFlag(flags, SaveFlag.Killer))
-                this.m_Killer.Serialize(writer);
+                m_Killer.Serialize(writer);
 
             if (GetSaveFlag(flags, SaveFlag.Summoner))
-                this.m_Summoner.Serialize(writer);
+                m_Summoner.Serialize(writer);
 
             if (GetSaveFlag(flags, SaveFlag.Removal))
-                writer.WriteEncodedInt((int)this.m_Removal);
+                writer.WriteEncodedInt((int)m_Removal);
 
             if (GetSaveFlag(flags, SaveFlag.Skill))
-                writer.WriteEncodedInt((int)this.m_Skill);
+                writer.WriteEncodedInt((int)m_Skill);
 
             if (GetSaveFlag(flags, SaveFlag.SuccessBonus))
-                writer.WriteEncodedInt(this.m_SuccessBonus);
+                writer.WriteEncodedInt(m_SuccessBonus);
 
             if (GetSaveFlag(flags, SaveFlag.ExceptionalBonus))
-                writer.WriteEncodedInt(this.m_ExceptionalBonus);
+                writer.WriteEncodedInt(m_ExceptionalBonus);
 
             if (GetSaveFlag(flags, SaveFlag.MaxCharges))
-                writer.WriteEncodedInt(this.m_MaxCharges);
+                writer.WriteEncodedInt(m_MaxCharges);
 
             if (GetSaveFlag(flags, SaveFlag.Charges))
-                writer.WriteEncodedInt(this.m_Charges);
+                writer.WriteEncodedInt(m_Charges);
 
             if (GetSaveFlag(flags, SaveFlag.MaxChargeTime))
-                writer.WriteEncodedInt(this.m_MaxChargeTime);
+                writer.WriteEncodedInt(m_MaxChargeTime);
 
             if (GetSaveFlag(flags, SaveFlag.ChargeTime))
-                writer.WriteEncodedInt(this.m_ChargeTime);
+                writer.WriteEncodedInt(m_ChargeTime);
 
             if (GetSaveFlag(flags, SaveFlag.Slayer))
-                writer.WriteEncodedInt((int)this.m_Slayer);
+                writer.WriteEncodedInt((int)m_Slayer);
+
+            if (GetSaveFlag(flags, SaveFlag.SAAbsorptionAttributes))
+                m_SAAbsorptionAttributes.Serialize(writer);
+
+            if (GetSaveFlag(flags, SaveFlag.NegativeAttributes))
+                m_NegativeAttributes.Serialize(writer);
         }
 
         public override void Deserialize(GenericReader reader)
@@ -874,6 +1081,19 @@ namespace Server.Items
 
             switch (version)
             {
+                case 4: // version 4 converts SkillName to CraftSystem (thanks glassblowing and stone crafting!)
+                case 3:
+                    {
+                        m_Creature = reader.ReadMobile();
+                        goto case 2;
+                    }
+                case 2:
+                    {
+                        _VvVItem = reader.ReadBool();
+                        _Owner = reader.ReadMobile();
+                        _OwnerName = reader.ReadString();
+                        goto case 1;
+                    }
                 case 1:
                     {
                         m_MaxHitPoints = reader.ReadInt();
@@ -885,93 +1105,119 @@ namespace Server.Items
                         SaveFlag flags = (SaveFlag)reader.ReadEncodedInt();
 
                         if (GetSaveFlag(flags, SaveFlag.Attributes))
-                            this.m_AosAttributes = new AosAttributes(this, reader);
+                            m_AosAttributes = new AosAttributes(this, reader);
                         else
-                            this.m_AosAttributes = new AosAttributes(this);
+                            m_AosAttributes = new AosAttributes(this);
 
                         if (GetSaveFlag(flags, SaveFlag.SkillBonuses))
-                            this.m_AosSkillBonuses = new AosSkillBonuses(this, reader);
+                            m_AosSkillBonuses = new AosSkillBonuses(this, reader);
                         else
-                            this.m_AosSkillBonuses = new AosSkillBonuses(this);
+                            m_AosSkillBonuses = new AosSkillBonuses(this);
 
                         // Backward compatibility
                         if (GetSaveFlag(flags, SaveFlag.Owner))
-                            this.BlessedFor = reader.ReadMobile();
+                            BlessedFor = reader.ReadMobile();
 
                         if (GetSaveFlag(flags, SaveFlag.Protection))
-                            this.m_Protection = new TalismanAttribute(reader);
+                            m_Protection = new TalismanAttribute(reader);
                         else
-                            this.m_Protection = new TalismanAttribute();
+                            m_Protection = new TalismanAttribute();
 
                         if (GetSaveFlag(flags, SaveFlag.Killer))
-                            this.m_Killer = new TalismanAttribute(reader);
+                            m_Killer = new TalismanAttribute(reader);
                         else
-                            this.m_Killer = new TalismanAttribute();
+                            m_Killer = new TalismanAttribute();
 
                         if (GetSaveFlag(flags, SaveFlag.Summoner))
-                            this.m_Summoner = new TalismanAttribute(reader);
+                            m_Summoner = new TalismanAttribute(reader);
                         else
-                            this.m_Summoner = new TalismanAttribute();
+                            m_Summoner = new TalismanAttribute();
 
                         if (GetSaveFlag(flags, SaveFlag.Removal))
-                            this.m_Removal = (TalismanRemoval)reader.ReadEncodedInt();
+                            m_Removal = (TalismanRemoval)reader.ReadEncodedInt();
 
                         if (GetSaveFlag(flags, SaveFlag.OldKarmaLoss))
-                            this.m_AosAttributes.IncreasedKarmaLoss = reader.ReadEncodedInt();
+                            m_AosAttributes.IncreasedKarmaLoss = reader.ReadEncodedInt();
 
                         if (GetSaveFlag(flags, SaveFlag.Skill))
-                            this.m_Skill = (SkillName)reader.ReadEncodedInt();
+                        {
+                            if (version <= 3)
+                            {
+                                m_Skill = GetTalismanSkill((SkillName)reader.ReadEncodedInt());
+                            }
+                            else
+                            {
+                                m_Skill = (TalismanSkill)reader.ReadEncodedInt();
+                            }
+                        }
 
                         if (GetSaveFlag(flags, SaveFlag.SuccessBonus))
-                            this.m_SuccessBonus = reader.ReadEncodedInt();
+                            m_SuccessBonus = reader.ReadEncodedInt();
 
                         if (GetSaveFlag(flags, SaveFlag.ExceptionalBonus))
-                            this.m_ExceptionalBonus = reader.ReadEncodedInt();
+                            m_ExceptionalBonus = reader.ReadEncodedInt();
 
                         if (GetSaveFlag(flags, SaveFlag.MaxCharges))
-                            this.m_MaxCharges = reader.ReadEncodedInt();
+                            m_MaxCharges = reader.ReadEncodedInt();
 
                         if (GetSaveFlag(flags, SaveFlag.Charges))
-                            this.m_Charges = reader.ReadEncodedInt();
+                            m_Charges = reader.ReadEncodedInt();
 
                         if (GetSaveFlag(flags, SaveFlag.MaxChargeTime))
-                            this.m_MaxChargeTime = reader.ReadEncodedInt();
+                            m_MaxChargeTime = reader.ReadEncodedInt();
 
                         if (GetSaveFlag(flags, SaveFlag.ChargeTime))
-                            this.m_ChargeTime = reader.ReadEncodedInt();
+                            m_ChargeTime = reader.ReadEncodedInt();
 
                         if (GetSaveFlag(flags, SaveFlag.Slayer))
-                            this.m_Slayer = (TalismanSlayerName)reader.ReadEncodedInt();
+                            m_Slayer = (TalismanSlayerName)reader.ReadEncodedInt();
 
-                        this.m_Blessed = GetSaveFlag(flags, SaveFlag.Blessed);
+                        m_Blessed = GetSaveFlag(flags, SaveFlag.Blessed);
 
+                        if (GetSaveFlag(flags, SaveFlag.SAAbsorptionAttributes))
+                            m_SAAbsorptionAttributes = new SAAbsorptionAttributes(this, reader);
+                        else
+                            m_SAAbsorptionAttributes = new SAAbsorptionAttributes(this);
+
+                        if (GetSaveFlag(flags, SaveFlag.NegativeAttributes))
+                            m_NegativeAttributes = new NegativeAttributes(this, reader);
+                        else
+                            m_NegativeAttributes = new NegativeAttributes(this);
                         break;
                     }
             }
 
-            if (this.Parent is Mobile)
+            if (Parent is Mobile)
             {
-                Mobile m = (Mobile)this.Parent;
+                Mobile m = (Mobile)Parent;
 
-                this.m_AosAttributes.AddStatBonuses(m);
-                this.m_AosSkillBonuses.AddTo(m);
+                m_AosAttributes.AddStatBonuses(m);
+                m_AosSkillBonuses.AddTo(m);
 
-                if (this.m_ChargeTime > 0)
-                    this.StartTimer();
+                if (m_ChargeTime > 0)
+                    StartTimer();
+            }
+
+            if (IsVvVItem && m_MaxHitPoints == 0)
+            {
+                m_NegativeAttributes.Antique = 1;
+
+                m_MaxHitPoints = 255;
+                m_HitPoints = 255;
             }
         }
 
         public virtual void OnAfterUse(Mobile m)
         {
-            this.m_ChargeTime = this.m_MaxChargeTime;
+            m_ChargeTime = m_MaxChargeTime;
 
-            if (this.m_Charges > 0 && this.m_MaxCharges > 0)
-                this.m_Charges -= 1;
+            if (m_Charges > 0 && m_MaxCharges > 0)
+                m_Charges -= 1;
 
-            if (this.m_ChargeTime > 0)
-                this.StartTimer();
+            if (m_ChargeTime > 0)
+                StartTimer();
 
-            this.InvalidateProperties();
+            InvalidateProperties();
         }
 
         public virtual Type GetSummoner()
@@ -981,17 +1227,17 @@ namespace Server.Items
 
         public virtual void SetSummoner(Type type, TextDefinition name)
         {
-            this.m_Summoner = new TalismanAttribute(type, name);
+            m_Summoner = new TalismanAttribute(type, name);
         }
 
         public virtual void SetProtection(Type type, TextDefinition name, int amount)
         {
-            this.m_Protection = new TalismanAttribute(type, name, amount);
+            m_Protection = new TalismanAttribute(type, name, amount);
         }
 
         public virtual void SetKiller(Type type, TextDefinition name, int amount)
         {
-            this.m_Killer = new TalismanAttribute(type, name, amount);
+            m_Killer = new TalismanAttribute(type, name, amount);
         }
 
         #region Timer
@@ -999,30 +1245,30 @@ namespace Server.Items
 
         public virtual void StartTimer()
         {
-            if (this.m_Timer == null || !this.m_Timer.Running)
-                this.m_Timer = Timer.DelayCall(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10), new TimerCallback(Slice));
+            if (m_Timer == null || !m_Timer.Running)
+                m_Timer = Timer.DelayCall(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10), new TimerCallback(Slice));
         }
 
         public virtual void StopTimer()
         {
-            if (this.m_Timer != null)
-                this.m_Timer.Stop();
+            if (m_Timer != null)
+                m_Timer.Stop();
 
-            this.m_Timer = null;
+            m_Timer = null;
         }
 
         public virtual void Slice()
         {
-            if (this.m_ChargeTime - 10 > 0)
-                this.m_ChargeTime -= 10;
+            if (m_ChargeTime - 10 > 0)
+                m_ChargeTime -= 10;
             else
             {
-                this.m_ChargeTime = 0;
+                m_ChargeTime = 0;
 
-                this.StopTimer();
+                StopTimer();
             }
 
-            this.InvalidateProperties();
+            InvalidateProperties();
         }
 
         #endregion
@@ -1038,6 +1284,7 @@ namespace Server.Items
             return Utility.RandomList(m_ItemIDs);
         }
 
+        public static Type[] Summons { get { return m_Summons; } }
         private static readonly Type[] m_Summons = new Type[]
         {
             typeof(SummonedAntLion),
@@ -1062,6 +1309,7 @@ namespace Server.Items
             typeof(Bandage),
         };
 
+        public static int[] SummonLabels { get { return m_SummonLabels; } }
         private static readonly int[] m_SummonLabels = new int[]
         {
             1075211, // Ant Lion
@@ -1115,6 +1363,7 @@ namespace Server.Items
             return TalismanRemoval.None;
         }
 
+        public static Type[] Killers { get { return m_Killers; } }
         private static readonly Type[] m_Killers = new Type[]
         {
             typeof(OrcBomber), typeof(OrcBrute), typeof(Sewerrat), typeof(Rat), typeof(GiantRat),
@@ -1133,6 +1382,7 @@ namespace Server.Items
             // TODO Meraktus, Tormented Minotaur, Minotaur
         };
 
+        public static int[] KillerLabels { get { return m_KillerLabels; } }
         private static readonly int[] m_KillerLabels = new int[]
         {
             1072413, 1072414, 1072418, 1072419, 1072420,
@@ -1180,7 +1430,8 @@ namespace Server.Items
             return new TalismanAttribute(m_Killers[num], m_KillerLabels[num], Utility.RandomMinMax(5, 60));
         }
 
-        private static readonly SkillName[] m_Skills = new SkillName[]
+        public static SkillName[] SkillsOld { get { return m_SkillsOld; } }
+        private static readonly SkillName[] m_SkillsOld = new SkillName[]
         {
             SkillName.Alchemy,
             SkillName.Blacksmith,
@@ -1193,7 +1444,23 @@ namespace Server.Items
             SkillName.Tinkering,
         };
 
-        public static SkillName GetRandomSkill()
+        public static TalismanSkill[] Skills { get { return m_Skills; } }
+        private static readonly TalismanSkill[] m_Skills = new TalismanSkill[]
+        {
+            TalismanSkill.Alchemy,
+            TalismanSkill.Blacksmithy,
+            TalismanSkill.Fletching,
+            TalismanSkill.Carpentry,
+            TalismanSkill.Cartography,
+            TalismanSkill.Cooking,
+            TalismanSkill.Glassblowing,
+            TalismanSkill.Inscription,
+            TalismanSkill.Masonry,
+            TalismanSkill.Tailoring,
+            TalismanSkill.Tinkering,
+        };
+
+        public static TalismanSkill GetRandomSkill()
         {
             return m_Skills[Utility.Random(m_Skills.Length)];
         }
@@ -1248,6 +1515,66 @@ namespace Server.Items
 
         #endregion
 
+        #region Crafting Bonuses
+        /// <summary>
+        /// This should only be called for version 4 conversion from SkillName to CraftSystem
+        /// </summary>
+        /// <param name="skill"></param>
+        /// <returns></returns>
+        public TalismanSkill GetTalismanSkill(SkillName skill)
+        {
+            switch (skill)
+            {
+                default:
+                case SkillName.Alchemy: return TalismanSkill.Alchemy;
+                case SkillName.Blacksmith: return TalismanSkill.Blacksmithy;
+                case SkillName.Carpentry: return TalismanSkill.Carpentry;
+                case SkillName.Cartography: return TalismanSkill.Cartography;
+                case SkillName.Cooking: return TalismanSkill.Cooking;
+                case SkillName.Fletching: return TalismanSkill.Fletching;
+                case SkillName.Inscribe: return TalismanSkill.Inscription;
+                case SkillName.Tailoring: return TalismanSkill.Tailoring;
+                case SkillName.Tinkering: return TalismanSkill.Tinkering;
+            }
+        }
+
+        public SkillName GetMainSkill()
+        {
+            switch (m_Skill)
+            {
+                default:
+                case TalismanSkill.Alchemy: return SkillName.Alchemy;
+                case TalismanSkill.Blacksmithy: return SkillName.Blacksmith;
+                case TalismanSkill.Fletching: return SkillName.Fletching;
+                case TalismanSkill.Carpentry: return SkillName.Carpentry;
+                case TalismanSkill.Cartography: return SkillName.Cartography;
+                case TalismanSkill.Cooking: return SkillName.Cooking;
+                case TalismanSkill.Glassblowing: return SkillName.Alchemy;
+                case TalismanSkill.Inscription: return SkillName.Inscribe;
+                case TalismanSkill.Masonry: return SkillName.Carpentry;
+                case TalismanSkill.Tailoring: return SkillName.Tailoring;
+                case TalismanSkill.Tinkering: return SkillName.Tinkering;
+            }
+        }
+
+        public int GetSkillLabel()
+        {
+            switch (m_Skill)
+            {
+                case TalismanSkill.Glassblowing: return 1072393;
+                case TalismanSkill.Masonry: return 1072392;
+                default: return AosSkillBonuses.GetLabel(GetMainSkill());
+            }
+        }
+
+        public bool CheckSkill(CraftSystem system)
+        {
+            int idx = (int)m_Skill;
+
+            return idx >= 0 && idx < CraftContext.Systems.Length && CraftContext.Systems[idx] == system;
+        }
+        #endregion
+
         private class TalismanTarget : Target
         {
             private readonly BaseTalisman m_Talisman;
@@ -1255,27 +1582,27 @@ namespace Server.Items
             public TalismanTarget(BaseTalisman talisman)
                 : base(12, false, TargetFlags.Beneficial)
             {
-                this.m_Talisman = talisman;
+                m_Talisman = talisman;
             }
 
             protected override void OnTarget(Mobile from, object o)
             {
-                if (this.m_Talisman == null || this.m_Talisman.Deleted)
+                if (m_Talisman == null || m_Talisman.Deleted)
                     return;
 
                 Mobile target = o as Mobile;
 
-                if (from.Talisman != this.m_Talisman)
+                if (from.Talisman != m_Talisman)
                     from.SendLocalizedMessage(502641); // You must equip this item to use it.
                 else if (target == null)
                     from.SendLocalizedMessage(1046439); // That is not a valid target.
-                else if (this.m_Talisman.ChargeTime > 0)
-                    from.SendLocalizedMessage(1074882, this.m_Talisman.ChargeTime.ToString()); // You must wait ~1_val~ seconds for this to recharge.
-                else if (this.m_Talisman.Charges == 0 && this.m_Talisman.MaxCharges > 0)
+                else if (m_Talisman.ChargeTime > 0)
+                    from.SendLocalizedMessage(1074882, m_Talisman.ChargeTime.ToString()); // You must wait ~1_val~ seconds for this to recharge.
+                else if (m_Talisman.Charges == 0 && m_Talisman.MaxCharges > 0)
                     from.SendLocalizedMessage(1042544); // This item is out of charges.
                 else
                 {
-                    switch (this.m_Talisman.Removal)
+                    switch (m_Talisman.Removal)
                     {
                         case TalismanRemoval.Curse:
                             target.PlaySound(0xF6);
@@ -1286,9 +1613,10 @@ namespace Server.Items
                             IEntity mto = new Entity(Serial.Zero, new Point3D(target.X, target.Y, target.Z + 50), from.Map);
                             Effects.SendMovingParticles(mfrom, mto, 0x2255, 1, 0, false, false, 13, 3, 9501, 1, 0, EffectLayer.Head, 0x100);
 
-                            target.RemoveStatMod("[Magic] Str Curse");
-							target.RemoveStatMod("[Magic] Dex Curse");
-							target.RemoveStatMod("[Magic] Int Curse");
+                            WeakenSpell.RemoveEffects(target);
+                            FeeblemindSpell.RemoveEffects(target);
+                            ClumsySpell.RemoveEffects(target);
+                            CurseSpell.RemoveEffect(target);
 
                             target.Paralyzed = false;
 
@@ -1297,9 +1625,6 @@ namespace Server.Items
                             CorpseSkinSpell.RemoveCurse(target);
                             CurseSpell.RemoveEffect(target);
 
-                            BuffInfo.RemoveBuff(target, BuffIcon.Clumsy);
-                            BuffInfo.RemoveBuff(target, BuffIcon.FeebleMind);
-                            BuffInfo.RemoveBuff(target, BuffIcon.Weaken);
                             BuffInfo.RemoveBuff(target, BuffIcon.MassCurse);
 
                             target.SendLocalizedMessage(1072408); // Any curses on you have been lifted
@@ -1332,6 +1657,9 @@ namespace Server.Items
                             ReactiveArmorSpell.EndArmor(target);
                             ProtectionSpell.EndProtection(target);
 
+                            EodonianPotion.RemoveEffects(target, PotionEffect.Barrab);
+                            EodonianPotion.RemoveEffects(target, PotionEffect.Urali);
+
                             target.SendLocalizedMessage(1072402); // Your wards have been removed!
 
                             if (target != from)
@@ -1343,7 +1671,7 @@ namespace Server.Items
                             break;
                     }
 
-                    this.m_Talisman.OnAfterUse(from);
+                    m_Talisman.OnAfterUse(from);
                 }
             }
         }

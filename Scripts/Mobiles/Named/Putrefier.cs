@@ -1,5 +1,6 @@
 using System;
 using Server.Items;
+using System.Collections.Generic;
 
 namespace Server.Mobiles
 {
@@ -9,7 +10,6 @@ namespace Server.Mobiles
         [Constructable]
         public Putrefier()
         {
-
             this.Name = "Putrefier";
             this.Hue = 63;
 
@@ -43,6 +43,11 @@ namespace Server.Mobiles
 
             this.Fame = 24000;
             this.Karma = -24000;
+
+            for (int i = 0; i < Utility.RandomMinMax(0, 2); i++)
+            {
+                this.PackItem(Loot.RandomScroll(0, Loot.ArcanistScrollTypes.Length, SpellbookType.Arcanist));
+            }
         }
 
         public Putrefier(Serial serial)
@@ -60,7 +65,7 @@ namespace Server.Mobiles
             c.DropItem( new ParrotItem() );
 
             if ( Paragon.ChestChance > Utility.RandomDouble() )
-            c.DropItem( new ParagonChest( Name, TreasureMapLevel ) );
+            c.DropItem( new ParagonChest( Name, 5 ) );
         }
 
         public override bool GivesMLMinorArtifact
@@ -76,12 +81,78 @@ namespace Server.Mobiles
             {
                 return Poison.Deadly;
             }
-        }// Becomes Lethal with Paragon bonus
-        public override int TreasureMapLevel
+        }// Becomes Lethal with Paragon bonus   
+        public override void OnDamagedBySpell(Mobile attacker)
         {
-            get
+            base.OnDamagedBySpell(attacker);
+
+            this.DoCounter(attacker);
+        }
+
+        public override void OnGotMeleeAttack(Mobile attacker)
+        {
+            base.OnGotMeleeAttack(attacker);
+
+            this.DoCounter(attacker);
+        }
+
+        private void DoCounter(Mobile attacker)
+        {
+            if (this.Map == null || (attacker is BaseCreature && ((BaseCreature)attacker).BardProvoked))
+                return;
+
+            if (0.2 > Utility.RandomDouble())
             {
-                return 5;
+                /* Counterattack with Hit Poison Area
+                * 20-25 damage, unresistable
+                * Lethal poison, 100% of the time
+                * Particle effect: Type: "2" From: "0x4061A107" To: "0x0" ItemId: "0x36BD" ItemIdName: "explosion" FromLocation: "(296 615, 17)" ToLocation: "(296 615, 17)" Speed: "1" Duration: "10" FixedDirection: "True" Explode: "False" Hue: "0xA6" RenderMode: "0x0" Effect: "0x1F78" ExplodeEffect: "0x1" ExplodeSound: "0x0" Serial: "0x4061A107" Layer: "255" Unknown: "0x0"
+                * Doesn't work on provoked monsters
+                */
+                Mobile target = null;
+
+                if (attacker is BaseCreature)
+                {
+                    Mobile m = ((BaseCreature)attacker).GetMaster();
+
+                    if (m != null)
+                        target = m;
+                }
+
+                if (target == null || !target.InRange(this, 25))
+                    target = attacker;
+
+                this.Animate(10, 4, 1, true, false, 0);
+
+                List<Mobile> targets = new List<Mobile>();
+                IPooledEnumerable eable = target.GetMobilesInRange(8);
+
+                foreach (Mobile m in eable)
+                {
+                    if (m == this || !this.CanBeHarmful(m))
+                        continue;
+
+                    if (m is BaseCreature && (((BaseCreature)m).Controlled || ((BaseCreature)m).Summoned || ((BaseCreature)m).Team != this.Team))
+                        targets.Add(m);
+                    else if (m.Player)
+                        targets.Add(m);
+                }
+                eable.Free();
+
+                for (int i = 0; i < targets.Count; ++i)
+                {
+                    Mobile m = (Mobile)targets[i];
+
+                    this.DoHarmful(m);
+
+                    AOS.Damage(m, this, Utility.RandomMinMax(20, 25), true, 0, 0, 0, 100, 0);
+
+                    m.FixedParticles(0x36BD, 1, 10, 0x1F78, 0xA6, 0, (EffectLayer)255);
+                    m.ApplyPoison(this, Poison.Lethal);
+                }
+
+                targets.Clear();
+                targets.TrimExcess();
             }
         }
 

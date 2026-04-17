@@ -80,13 +80,6 @@ namespace Server.Mobiles
                 return true;
             }
         }
-        public override bool AutoDispel
-        {
-            get
-            {
-                return true;
-            }
-        }
         public override bool BardImmune
         {
             get
@@ -222,9 +215,6 @@ namespace Server.Mobiles
             int version = reader.ReadInt();
 
             this.m_FieldActive = this.CanUseField;
-
-            if (this.Name == "Exodus Overseer")
-                this.Name = "exodus overseer";
         }
     }
 }

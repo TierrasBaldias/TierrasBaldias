@@ -10,18 +10,23 @@ namespace Server.Regions
         {
         }
 
+        public override bool AllowAutoClaim( Mobile from )
+        {
+            return false;
+        }
+
         public override bool AllowBeneficial(Mobile from, Mobile target)
         {
             if (from.IsPlayer())
-                from.SendMessage("You may not do that in jail.");
+                from.SendLocalizedMessage(1115999); // You may not do that in this area.
 
             return (from.IsStaff());
         }
 
-        public override bool AllowHarmful(Mobile from, Mobile target)
+        public override bool AllowHarmful(Mobile from, IDamageable target)
         {
-            if (from.IsPlayer())
-                from.SendMessage("You may not do that in jail.");
+            if (from.Player)
+                from.SendLocalizedMessage(1115999); // You may not do that in this area.
 
             return (from.IsStaff());
         }
@@ -39,20 +44,23 @@ namespace Server.Regions
         public override bool OnBeginSpellCast(Mobile from, ISpell s)
         {
             if (from.IsPlayer())
+            {
                 from.SendLocalizedMessage(502629); // You cannot cast spells here.
+                return false;
+            }
 
-            return (from.IsStaff());
+            return base.OnBeginSpellCast(from, s);
         }
 
         public override bool OnSkillUse(Mobile from, int Skill)
         {
             if (from.IsPlayer())
-                from.SendMessage("You may not use skills in jail.");
+                from.SendLocalizedMessage(1116000); // You may not use that skill in this area.
 
             return (from.IsStaff());
         }
 
-        public override bool OnCombatantChange(Mobile from, Mobile Old, Mobile New)
+        public override bool OnCombatantChange(Mobile from, IDamageable Old, IDamageable New)
         {
             return (from.IsStaff());
         }

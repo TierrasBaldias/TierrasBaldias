@@ -1,9 +1,3 @@
-#region Header
-// **********
-// ServUO - GuardAI.cs
-// **********
-#endregion
-
 #region References
 using System;
 using System.Collections.Generic;
@@ -268,7 +262,7 @@ namespace Server.Factions
 			if (buff != null)
 				offset += buff.Offset;
 			if (curse != null)
-				offset += buff.Offset;
+				offset += curse.Offset;
 
 			return offset;
 		}
@@ -324,7 +318,7 @@ namespace Server.Factions
 				Mobile active = null;
 				double activePrio = 0.0;
 
-				Mobile comb = m_Mobile.Combatant;
+				Mobile comb = m_Mobile.Combatant as Mobile;
 
 				if (comb != null && !comb.Deleted && comb.Alive && !comb.IsDeadBondedPet && m_Mobile.InRange(comb, 12) &&
 					CanDispel(comb))
@@ -393,7 +387,7 @@ namespace Server.Factions
 					Mobile active = null, inactive = null;
 					double actPrio = 0.0, inactPrio = 0.0;
 
-					Mobile comb = m_Mobile.Combatant;
+					Mobile comb = m_Mobile.Combatant as Mobile;
 
 					if (comb != null && !comb.Deleted && comb.Alive && !comb.IsDeadBondedPet && CanDispel(comb))
 					{
@@ -401,7 +395,9 @@ namespace Server.Factions
 						actPrio = inactPrio = m_Mobile.GetDistanceToSqrt(comb);
 					}
 
-					foreach (Mobile m in m_Mobile.GetMobilesInRange(12))
+                    IPooledEnumerable eable = m_Mobile.GetMobilesInRange(12);
+
+					foreach (Mobile m in eable)
 					{
 						if (m != m_Mobile && CanDispel(m))
 						{
@@ -420,6 +416,8 @@ namespace Server.Factions
 							}
 						}
 					}
+
+                    eable.Free();
 
 					return active != null ? active : inactive;
 				}
@@ -513,7 +511,7 @@ namespace Server.Factions
 				return false;
 			}
 
-			Mobile combatant = m_Guard.Combatant;
+			Mobile combatant = m_Guard.Combatant as Mobile;
 
 			if (combatant == null || combatant.Deleted || !combatant.Alive || combatant.IsDeadBondedPet ||
 				!m_Mobile.CanSee(combatant) || !m_Mobile.CanBeHarmful(combatant, false) || combatant.Map != m_Mobile.Map)
@@ -522,7 +520,7 @@ namespace Server.Factions
 				// Try to find another combatant
 				if (AcquireFocusMob(m_Mobile.RangePerception, m_Mobile.FightMode, false, false, true))
 				{
-					m_Mobile.Combatant = combatant = m_Mobile.FocusMob;
+					m_Mobile.Combatant = combatant = m_Mobile.FocusMob as Mobile;
 					m_Mobile.FocusMob = null;
 				}
 				else
@@ -535,7 +533,7 @@ namespace Server.Factions
 			{
 				if (AcquireFocusMob(m_Mobile.RangePerception, m_Mobile.FightMode, false, false, true))
 				{
-					m_Mobile.Combatant = combatant = m_Mobile.FocusMob;
+					m_Mobile.Combatant = combatant = m_Mobile.FocusMob as Mobile;
 					m_Mobile.FocusMob = null;
 				}
 				else if (!m_Mobile.InRange(combatant, 36))
@@ -701,7 +699,7 @@ namespace Server.Factions
 					if (IsAllowed(GuardAI.Magic) && ((m_Guard.Hits * 100) / Math.Max(m_Guard.HitsMax, 1)) < 10 &&
 						m_Guard.Home != Point3D.Zero && !Utility.InRange(m_Guard.Location, m_Guard.Home, 15) && m_Guard.Mana >= 11)
 					{
-						spell = new RecallSpell(m_Guard, null, new RunebookEntry(m_Guard.Home, m_Guard.Map, "Guard's Home", null), null);
+						spell = new RecallSpell(m_Guard, null, new RunebookEntry(m_Guard.Home, m_Guard.Map, "Guard's Home", null, RecallRuneType.Normal), null);
 					}
 					else if (IsAllowed(GuardAI.Bless))
 					{

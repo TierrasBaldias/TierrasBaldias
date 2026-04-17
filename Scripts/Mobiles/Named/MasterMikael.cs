@@ -9,7 +9,6 @@ namespace Server.Mobiles
         [Constructable]
         public MasterMikael()
         {
-
             this.Name = "Master Mikael";
             this.Hue = 0x8FD;
 
@@ -42,6 +41,11 @@ namespace Server.Mobiles
 
             this.PackReg(3);
             this.PackNecroReg(1, 10);
+
+            for (int i = 0; i < Utility.RandomMinMax(0, 1); i++)
+            {
+                this.PackItem(Loot.RandomScroll(0, Loot.ArcanistScrollTypes.Length, SpellbookType.Arcanist));
+            }
         }
 
         public MasterMikael(Serial serial)
@@ -60,13 +64,13 @@ namespace Server.Mobiles
             c.DropItem( new ParrotItem() );
         }
 
-        public override bool GivesMLMinorArtifact
+        /*public override bool GivesMLMinorArtifact
         {
             get
             {
                 return true;
             }
-        }
+        }*/
         public override void GenerateLoot()
         {
             this.AddLoot(LootPack.UltraRich, 2);

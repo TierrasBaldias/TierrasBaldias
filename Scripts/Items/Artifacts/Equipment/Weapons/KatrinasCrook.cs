@@ -9,13 +9,11 @@ namespace Server.Items
         public KatrinasCrook()
             : base()
         {
-            this.WeaponAttributes.HitLeechStam = 40;
-            this.WeaponAttributes.HitLeechMana = 55;
-            this.WeaponAttributes.HitLeechHits = 55;
-
-            this.Attributes.WeaponDamage = 60;
-            this.Attributes.DefendChance = 15;
-            BlockRepair = true;
+            WeaponAttributes.HitLeechStam = 40;
+            WeaponAttributes.HitLeechMana = 55;
+            WeaponAttributes.HitLeechHits = 55;
+            Attributes.WeaponDamage = 60;
+            Attributes.DefendChance = 15;
         }
 
         public KatrinasCrook(Serial serial)
@@ -41,28 +39,33 @@ namespace Server.Items
         {
             get
             {
-                return 120;
+                return 255;
             }
         }
         public override int InitMaxHits
         {
             get
             {
-                return 120;
+                return 255;
             }
         }
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);
 
-            writer.Write((int)2);
+            writer.WriteEncodedInt(1); // version
         }
 
         public override void Deserialize(GenericReader reader)
         {
             base.Deserialize(reader);
 
-            int version = reader.ReadInt();
+            int version = reader.ReadEncodedInt();
+
+            if (version == 0)
+            {
+                NegativeAttributes.NoRepair = 0;
+            }
         }
     }
 }

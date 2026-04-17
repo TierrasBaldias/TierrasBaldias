@@ -31,6 +31,11 @@ namespace Server.SkillHandlers
                 return TimeSpan.FromSeconds(1.0);
             }
 
+            if (Server.Engines.VvV.ManaSpike.UnderEffects(m))
+            {
+                return TimeSpan.FromSeconds(1.0);
+            }
+
             if (Core.ML && m.Target != null)
             {
                 Targeting.Target.Cancel(m);
@@ -63,16 +68,19 @@ namespace Server.SkillHandlers
             }
 
             //int range = 18 - (int)(m.Skills[SkillName.Hiding].Value / 10);
-            int range = Math.Min((int)((100 - m.Skills[SkillName.Hiding].Value) / 2) + 8, 18);	//Cap of 18 not OSI-exact, intentional difference
+            int skill = Math.Min(100, (int)m.Skills[SkillName.Hiding].Value);
+            int range = Math.Min((int)((100 - skill) / 2) + 8, 18);	//Cap of 18 not OSI-exact, intentional difference
 
-            bool badCombat = (!m_CombatOverride && m.Combatant != null && m.InRange(m.Combatant.Location, range) && m.Combatant.InLOS(m));
+            bool badCombat = (!m_CombatOverride && m.Combatant is Mobile && m.InRange(m.Combatant.Location, range) && ((Mobile)m.Combatant).InLOS(m.Combatant));
             bool ok = (!badCombat /*&& m.CheckSkill( SkillName.Hiding, 0.0 - bonus, 100.0 - bonus )*/);
 
             if (ok)
             {
                 if (!m_CombatOverride)
                 {
-                    foreach (Mobile check in m.GetMobilesInRange(range))
+                    IPooledEnumerable eable = m.GetMobilesInRange(range);
+
+                    foreach (Mobile check in eable)
                     {
                         if (check.InLOS(m) && check.Combatant == m)
                         {
@@ -81,6 +89,8 @@ namespace Server.SkillHandlers
                             break;
                         }
                     }
+
+                    eable.Free();
                 }
 
                 ok = (!badCombat && m.CheckSkill(SkillName.Hiding, 0.0 - bonus, 100.0 - bonus));
@@ -92,7 +102,8 @@ namespace Server.SkillHandlers
 
                 m.LocalOverheadMessage(MessageType.Regular, 0x22, 501237); // You can't seem to hide right now.
 
-                return TimeSpan.FromSeconds(1.0);
+                return TimeSpan.Zero;
+                //return TimeSpan.FromSeconds(1.0);
             }
             else 
             {

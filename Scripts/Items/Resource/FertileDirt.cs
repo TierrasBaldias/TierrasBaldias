@@ -10,13 +10,20 @@ namespace Server.Items
         {
         }
 
+        public override double DefaultWeight
+        {
+            get
+            {
+                return 0.1;
+            }
+        }
+
         [Constructable]
         public FertileDirt(int amount)
             : base(0xF81)
         {
-            this.Stackable = true;
-            this.Weight = 1.0;
-            this.Amount = amount;
+            Stackable = true;
+            Amount = amount;
         }
 
         public FertileDirt(Serial serial)

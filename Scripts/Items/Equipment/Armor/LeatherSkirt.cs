@@ -1,7 +1,9 @@
 using System;
+using Server.Engines.Craft;
 
 namespace Server.Items
 {
+    [Alterable(typeof(DefTailoring), typeof(FemaleGargishLeatherLegs))]
     [FlipableAttribute(0x1c08, 0x1c09)]
     public class LeatherSkirt : BaseArmor
     {
@@ -9,7 +11,7 @@ namespace Server.Items
         public LeatherSkirt()
             : base(0x1C08)
         {
-            this.Weight = 1.0;
+            Weight = 1.0;
         }
 
         public LeatherSkirt(Serial serial)
@@ -119,9 +121,6 @@ namespace Server.Items
         {
             base.Serialize(writer);
             writer.Write((int)0);
-
-            if (this.Weight == 3.0)
-                this.Weight = 1.0;
         }
 
         public override void Deserialize(GenericReader reader)

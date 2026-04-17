@@ -1,7 +1,9 @@
 using System;
+using Server.Engines.Craft;
 
 namespace Server.Items
 {
+    [Alterable(typeof(DefBlacksmithy), typeof(GargishPlateKilt))]
     [FlipableAttribute(0x13eb, 0x13f2)]
     public class RingmailGloves : BaseArmor
     {
@@ -9,7 +11,7 @@ namespace Server.Items
         public RingmailGloves()
             : base(0x13EB)
         {
-            this.Weight = 2.0;
+            Weight = 2.0;
         }
 
         public RingmailGloves(Serial serial)
@@ -111,9 +113,6 @@ namespace Server.Items
         {
             base.Deserialize(reader);
             int version = reader.ReadInt();
-
-            if (this.Weight == 1.0)
-                this.Weight = 2.0;
         }
     }
 }

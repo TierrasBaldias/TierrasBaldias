@@ -75,15 +75,6 @@ namespace Server.Items
 
 			DropItem( new Gold( 10, 40 ) );
 			DropItem( new Bolt( 5 ) );
-			switch ( Utility.Random( 6 )) 
-			{ 
-				case 0: DropItem( new Candelabra()  ); break; 
-				case 1: DropItem( new Candle() ); break; 
-				case 2: DropItem( new CandleLarge() ); break; 
-				case 3: DropItem( new CandleLong() ); break; 
-				case 4: DropItem( new CandleShort() ); break; 
-				case 5: DropItem( new CandleSkull() ); break; 
-			}
 			switch ( Utility.Random( 2 )) 
 			{ 
 				case 0: DropItem( new Shoes( Utility.Random( 1, 2 ) ) ); break; 
@@ -223,14 +214,14 @@ namespace Server.Items
                         weapon.DamageLevel = (WeaponDamageLevel)Utility.Random(3);
                         weapon.AccuracyLevel = (WeaponAccuracyLevel)Utility.Random(3);
                         weapon.DurabilityLevel = (WeaponDurabilityLevel)Utility.Random(3);
-                        weapon.Quality = WeaponQuality.Regular;
+                        weapon.Quality = ItemQuality.Normal;
                     }
                     else if (item is BaseArmor)
                     {
                         BaseArmor armor = (BaseArmor)item;
                         armor.ProtectionLevel = (ArmorProtectionLevel)Utility.Random(3);
                         armor.Durability = (ArmorDurabilityLevel)Utility.Random(3);
-                        armor.Quality = ArmorQuality.Regular;
+                        armor.Quality = ItemQuality.Normal;
                     }
                 }
                 else
@@ -318,14 +309,14 @@ namespace Server.Items
                         weapon.DamageLevel = (WeaponDamageLevel)Utility.Random(4);
                         weapon.AccuracyLevel = (WeaponAccuracyLevel)Utility.Random(4);
                         weapon.DurabilityLevel = (WeaponDurabilityLevel)Utility.Random(4);
-                        weapon.Quality = WeaponQuality.Regular;
+                        weapon.Quality = ItemQuality.Normal;
                     }
                     else if (item is BaseArmor)
                     {
                         BaseArmor armor = (BaseArmor)item;
                         armor.ProtectionLevel = (ArmorProtectionLevel)Utility.Random(4);
                         armor.Durability = (ArmorDurabilityLevel)Utility.Random(4);
-                        armor.Quality = ArmorQuality.Regular;
+                        armor.Quality = ItemQuality.Normal;
                     }
                 }
                 else
@@ -337,12 +328,6 @@ namespace Server.Items
 			
 			for( int i = Utility.Random( 1, 2 ); i > 1; i-- )
 				AddLoot( Loot.RandomJewelry() );
-			
-			DropItem( new MagicCrystalBall() );
-
-			// Magic clothing (not implemented)
-			
-			// Magic jewelry (not implemented)
 		} 
 
 		public TreasureLevel4( Serial serial ) : base( serial ) 

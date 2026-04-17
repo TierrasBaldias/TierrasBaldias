@@ -1,4 +1,7 @@
 using System;
+using Server.Items;
+using Server.Network;
+using System.Collections.Generic;
 
 namespace Server.Mobiles
 {
@@ -37,7 +40,7 @@ namespace Server.Mobiles
             SetSkill(SkillName.Tactics, 100.0);
             SetSkill(SkillName.Wrestling, 100.0);
 
-            QLPoints = 15;
+            SetSpecialAbility(SpecialAbility.Anemia);
         }
 
         public BloodWorm(Serial serial)
@@ -49,6 +52,14 @@ namespace Server.Mobiles
         {
             AddLoot(LootPack.Rich);
             AddLoot(LootPack.Average);
+        }
+
+        public override void OnDeath(Container c)
+        {
+            base.OnDeath(c);
+
+            if (Utility.RandomDouble() < 0.02)            
+                c.DropItem(new LuckyCoin());            
         }
 
         public override int GetIdleSound()
@@ -69,6 +80,45 @@ namespace Server.Mobiles
         public override int GetDeathSound()
         {
             return 1501;
+        }
+
+        public override void OnAfterMove(Point3D oldLocation)
+        {
+            base.OnAfterMove(oldLocation);
+
+            if (Hits < HitsMax && 0.25 > Utility.RandomDouble())
+            {
+                Corpse toAbsorb = null;
+
+                foreach (Item item in Map.GetItemsInRange(Location, 1))
+                {
+                    if (item is Corpse)
+                    {
+                        Corpse c = (Corpse)item;
+
+                        if (c.ItemID == 0x2006)
+                        {
+                            toAbsorb = c;
+                            break;
+                        }
+                    }
+                }
+
+                if (toAbsorb != null)
+                {
+                    toAbsorb.ProcessDelta();
+                    toAbsorb.SendRemovePacket();
+                    toAbsorb.ItemID = Utility.Random(0xECA, 9); // bone graphic
+                    toAbsorb.Hue = 0;
+                    toAbsorb.Direction = Direction.North;
+                    toAbsorb.ProcessDelta();
+
+                    Hits = HitsMax;
+
+                    // * The creature drains blood from a nearby corpse to heal itself. *
+                    PublicOverheadMessage(MessageType.Regular, 0x3B2, 1111699);
+                }
+            }
         }
 
         public override void Serialize(GenericWriter writer)

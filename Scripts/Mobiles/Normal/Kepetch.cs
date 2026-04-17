@@ -7,34 +7,42 @@ namespace Server.Mobiles
     [CorpseName("a kepetch corpse")]
     public class Kepetch : BaseCreature, ICarvable
     {
-        private DateTime m_NextWoolTime;
+        public bool GatheredFur { get; set; }
+
         [Constructable]
         public Kepetch()
-            : base(AIType.AI_Animal, FightMode.Aggressor, 10, 1, 0.2, 0.4)
+            : base(AIType.AI_Melee, FightMode.Closest, 10, 1, 0.2, 0.4)
         {
-            this.Name = "a kepetch";
-            this.Body = 726;
+            Name = "a kepetch";
+            Body = 726;
 
-            this.SetStr(337, 354);
-            this.SetDex(184, 194);
-            this.SetInt(32, 37);
+            SetStr(337, 380);
+            SetDex(184, 194);
+            SetInt(30, 50);
 
-            this.SetHits(308, 366);
+            SetHits(300, 400);
 
-            this.SetDamage(7, 17);
+            SetDamage(7, 17);
 
-            this.SetDamageType(ResistanceType.Physical, 100);
+            SetDamageType(ResistanceType.Physical, 100);
 
-            this.SetResistance(ResistanceType.Physical, 55, 65);
-            this.SetResistance(ResistanceType.Fire, 40, 45);
-            this.SetResistance(ResistanceType.Cold, 45, 55);
-            this.SetResistance(ResistanceType.Poison, 55, 65);
-            this.SetResistance(ResistanceType.Energy, 65, 75);
+            SetResistance(ResistanceType.Physical, 55, 75);
+            SetResistance(ResistanceType.Fire, 40, 60);
+            SetResistance(ResistanceType.Cold, 40, 50);
+            SetResistance(ResistanceType.Poison, 50, 70);
+            SetResistance(ResistanceType.Energy, 60, 70);
 
-            this.SetSkill(SkillName.Anatomy, 119.7, 124.1);
-            this.SetSkill(SkillName.MagicResist, 89.9, 97.4);
-            this.SetSkill(SkillName.Tactics, 117.4, 123.5);
-            this.SetSkill(SkillName.Wrestling, 107.7, 113.9);
+            SetSkill(SkillName.Anatomy, 119.7, 124.1);
+            SetSkill(SkillName.MagicResist, 89.9, 97.4);
+            SetSkill(SkillName.Tactics, 117.4, 123.5);
+            SetSkill(SkillName.Wrestling, 107.7, 113.9);
+            SetSkill(SkillName.DetectHidden, 25.0);
+            SetSkill(SkillName.Parry, 60.0, 70.0);
+
+            Fame = 6000;
+            Karma = -6000;
+
+            SetSpecialAbility(SpecialAbility.ViciousBite);
         }
 
         public Kepetch(Serial serial)
@@ -42,78 +50,43 @@ namespace Server.Mobiles
         {
         }
 
-        [CommandProperty(AccessLevel.GameMaster)]
-        public DateTime NextWoolTime
+        public override int Meat { get { return 5; } }
+        public override int Hides { get { return 14; } }
+        public override HideType HideType { get { return HideType.Spined; } }
+        public override FoodType FavoriteFood { get { return FoodType.FruitsAndVegies | FoodType.GrainsAndHay; } }
+        public override int DragonBlood { get { return 8; } }
+        public override int Fur { get { return GatheredFur ? 0 : 15; } }
+        public override FurType FurType { get { return FurType.Brown; } }
+
+        public bool Carve(Mobile from, Item item)
         {
-            get
+            if (!GatheredFur)
             {
-                return this.m_NextWoolTime;
+                var fur = new Fur(FurType, Fur);
+
+                if (from.Backpack == null || !from.Backpack.TryDropItem(from, fur, false))
+                {
+                    from.SendLocalizedMessage(1112359); // You would not be able to place the gathered kepetch fur in your backpack!
+                    fur.Delete();
+                }
+                else
+                {
+                    from.SendLocalizedMessage(1112360); // You place the gathered kepetch fur into your backpack.
+                    GatheredFur = true;
+                    return true;
+                }
             }
-            set
+            else
             {
-                this.m_NextWoolTime = value;
-                this.Body = (DateTime.UtcNow >= this.m_NextWoolTime) ? 0xCF : 0xDF;
-            }
-        }
-        public override int Meat
-        {
-            get
-            {
-                return 5;
-            }
-        }
-        public override int Hides
-        {
-            get
-            {
-                return 14;
-            }
-        }
-        public override HideType HideType
-        {
-            get
-            {
-                return HideType.Spined;
-            }
-        }
-        public override FoodType FavoriteFood
-        {
-            get
-            {
-                return FoodType.FruitsAndVegies | FoodType.GrainsAndHay;
-            }
-        }
-        public override int Wool
-        {
-            get
-            {
-                return (this.Body == 726 ? 3 : 0);
-            }
-        }
-        public void Carve(Mobile from, Item item)
-        {
-            if (DateTime.UtcNow < this.m_NextWoolTime)
-            {
-                // This sheep is not yet ready to be shorn.
-                this.PrivateOverheadMessage(MessageType.Regular, 0x3B2, 500449, from.NetState);
-                return;
+                PrivateOverheadMessage(MessageType.Regular, 0x3B2, 1112358, from.NetState); // The Kepetch nimbly escapes your attempts to shear its mane.
             }
 
-            from.SendLocalizedMessage(500452); // You place the gathered wool into your backpack.
-            from.AddToBackpack(new Wool(this.Map == Map.Felucca ? 2 : 1));
-
-            this.NextWoolTime = DateTime.UtcNow + TimeSpan.FromHours(3.0); // TODO: Proper time delay
-        }
-
-        public override void OnThink()
-        {
-            base.OnThink();
-            this.Body = (DateTime.UtcNow >= this.m_NextWoolTime) ? 726 : 727;
+            return false;
         }
 
         public override void GenerateLoot()
         {
-            this.AddLoot(LootPack.Average, 2);
+            AddLoot(LootPack.Average, 2);
         }
 
         public override int GetIdleSound()
@@ -139,26 +112,20 @@ namespace Server.Mobiles
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);
+            writer.Write(2);
 
-            writer.Write((int)1);
-
-            writer.WriteDeltaTime(this.m_NextWoolTime);
+            writer.Write(GatheredFur);
         }
 
         public override void Deserialize(GenericReader reader)
         {
             base.Deserialize(reader);
+            var version = reader.ReadInt();
 
-            int version = reader.ReadInt();
-
-            switch ( version )
-            {
-                case 1:
-                    {
-                        this.NextWoolTime = reader.ReadDeltaTime();
-                        break;
-                    }
-            }
+            if (version == 1)
+                reader.ReadDeltaTime();
+            else
+                GatheredFur = reader.ReadBool();
         }
     }
 }

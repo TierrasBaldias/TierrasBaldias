@@ -1,4 +1,5 @@
 using System;
+using Server.Items;
 
 namespace Server.Mobiles
 {
@@ -10,7 +11,7 @@ namespace Server.Mobiles
             : base(AIType.AI_Mage, FightMode.Closest, 10, 1, 0.2, 0.4)
         {
             this.Name = "Flurry";
-            this.Body = 0x4F2;
+            this.Body = 13;
             this.Hue = 3;
             this.BaseSoundID = 655;
 
@@ -41,6 +42,16 @@ namespace Server.Mobiles
             this.Karma = -4500;
 
             this.VirtualArmor = 54;
+
+            for (int i = 0; i < Utility.RandomMinMax(0, 1); i++)
+            {
+                this.PackItem(Loot.RandomScroll(0, Loot.ArcanistScrollTypes.Length, SpellbookType.Arcanist));
+            }
+        }
+
+        public override bool GivesMLMinorArtifact
+        {
+            get { return true; }
         }
 
         public Flurry(Serial serial)
@@ -94,9 +105,6 @@ namespace Server.Mobiles
         {
             base.Deserialize(reader);
             int version = reader.ReadInt();
-
-            if (this.BaseSoundID == 263)
-                this.BaseSoundID = 655;
         }
     }
 }

@@ -7,13 +7,7 @@ namespace Server.Mobiles
     [CorpseName("a boura corpse")]
     public class HighPlainsBoura : BaseCreature, ICarvable
     {
-        public static Type[] VArtifacts =
-        {
-            typeof (BouraTailShield)
-        };
-
-        private DateTime m_NextWoolTime; //
-        private bool m_Stunning;
+        private bool GatheredFur { get; set; }
 
         [Constructable]
         public HighPlainsBoura()
@@ -47,27 +41,17 @@ namespace Server.Mobiles
             ControlSlots = 3;
             MinTameSkill = 47.1;
 
-            QLPoints = 15;
-
             Fame = 5000;
-            Karma = 5000; //Lose Karma for killing
+            Karma = -5000; 
 
             VirtualArmor = 16;
+
+            SetSpecialAbility(SpecialAbility.TailSwipe);
+            SetSpecialAbility(SpecialAbility.ColossalBlow);
         }
 
         public HighPlainsBoura(Serial serial) : base(serial)
         {
-        }
-
-        [CommandProperty(AccessLevel.GameMaster)]
-        public DateTime NextWoolTime
-        {
-            get { return m_NextWoolTime; }
-            set
-            {
-                m_NextWoolTime = value;
-                Body = (DateTime.Now >= m_NextWoolTime) ? 0x2CB : 0x2CB;
-            }
         }
 
         public override int Meat
@@ -87,32 +71,37 @@ namespace Server.Mobiles
             get { return HideType.Horned; }
         }
 
-        public override FoodType FavoriteFood
-        {
-            get { return FoodType.FruitsAndVegies | FoodType.GrainsAndHay; }
-        }
+        public override FoodType FavoriteFood { get { return FoodType.FruitsAndVegies; } }
 
-        public void Carve(Mobile from, Item item)
+        public override int Fur { get { return GatheredFur ? 0 : 30; } }
+        public override FurType FurType { get { return FurType.Yellow; } }
+
+        public bool Carve(Mobile from, Item item)
         {
-            if (DateTime.Now < m_NextWoolTime)
+            if (!GatheredFur)
             {
-                // The boura glares at you and will not let you shear its fur.
-                PrivateOverheadMessage(MessageType.Regular, 0x3B2, 1112354, from.NetState);
-                return;
+                var fur = new Fur(FurType, Fur);
+
+                if (from.Backpack == null || !from.Backpack.TryDropItem(from, fur, false))
+                {
+                    from.SendLocalizedMessage(1112352); // You would not be able to place the gathered boura fur in your backpack!
+                    fur.Delete();
+                }
+                else
+                {
+                    from.SendLocalizedMessage(1112353); // You place the gathered boura fur into your backpack.
+                    GatheredFur = true;
+
+                    return true;
+                }
+            }
+            else
+            {
+                PrivateOverheadMessage(MessageType.Regular, 0x3B2, 1112354, from.NetState); // The boura glares at you and will not let you shear its fur.
             }
 
-            from.SendLocalizedMessage(1112353); // You place the gathered boura fur into your backpack.
-            //from.AddToBackpack( new FurY( Map == Map.Felucca ? 2 : 30 ) );
-            from.AddToBackpack(new Fur(Map == Map.Felucca ? 2 : 30));
-
-            NextWoolTime = DateTime.Now + TimeSpan.FromHours(3.0); // TODO: Proper time delay
+            return false;
         }
-
-        public override void OnThink()
-        {
-            base.OnThink();
-            Body = (DateTime.Now >= m_NextWoolTime) ? 0x2CB : 0x2CB;
-        } //
 
         public override int GetIdleSound()
         {
@@ -138,77 +127,22 @@ namespace Server.Mobiles
         {
             base.OnDeath(c);
 
-            c.DropItem(new BouraPelt());
-            c.DropItem(new BouraSkin());
-
-            if (c != null && !c.Deleted && c is Corpse)
+            if (!Controlled)
             {
-                var corpse = (Corpse) c;
-                if (Utility.RandomDouble() < 0.01 && corpse.Killer != null && !corpse.Killer.Deleted)
+                c.DropItem(new BouraSkin());
+
+                if (Utility.RandomDouble() <= 0.005)
                 {
-                    GiveVArtifactTo(corpse.Killer);
+                    c.DropItem(new BouraTailShield());
                 }
             }
-        }
-
-        public static void GiveVArtifactTo(Mobile m)
-        {
-            var item = (Item) Activator.CreateInstance(VArtifacts[Utility.Random(VArtifacts.Length)]);
-			m.PlaySound(0x5B4);
-
-            if (m.AddToBackpack(item))
-                m.SendLocalizedMessage(1062317);
-                    // For your valor in combating the fallen beast, a special artifact has been bestowed on you.
-            else
-                m.SendMessage("As your backpack is full, your reward has been placed at your feet.");
-            {
-            }
-        }
-
-        public override void OnGaveMeleeAttack(Mobile defender)
-        {
-            base.OnGaveMeleeAttack(defender);
-
-            if (!m_Stunning && 0.3 > Utility.RandomDouble())
-            {
-                m_Stunning = true;
-
-                defender.Animate(21, 6, 1, true, false, 0);
-                PlaySound(0xEE);
-                defender.LocalOverheadMessage(MessageType.Regular, 0x3B2, false,
-                    "You have been stunned by a colossal blow!");
-
-                var weapon = Weapon as BaseWeapon;
-                if (weapon != null)
-                    weapon.OnHit(this, defender);
-
-                if (defender.Alive)
-                {
-                    defender.Frozen = true;
-                    Timer.DelayCall(TimeSpan.FromSeconds(5.0), new TimerStateCallback(Recover_Callback), defender);
-                }
-            }
-        }
-
-        private void Recover_Callback(object state)
-        {
-            var defender = state as Mobile;
-
-            if (defender != null)
-            {
-                defender.Frozen = false;
-                defender.Combatant = null;
-                defender.LocalOverheadMessage(MessageType.Regular, 0x3B2, false, "You recover your senses.");
-            }
-
-            m_Stunning = false;
         }
 
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);
-            writer.Write(1); //0
-            writer.WriteDeltaTime(m_NextWoolTime);
+            writer.Write(2);
+            writer.Write(GatheredFur);
         }
 
         public override void Deserialize(GenericReader reader)
@@ -216,13 +150,11 @@ namespace Server.Mobiles
             base.Deserialize(reader);
             var version = reader.ReadInt();
 
-            switch (version)
+            if (version == 1)
+                reader.ReadDeltaTime();
+            else
             {
-                case 1:
-                {
-                    NextWoolTime = reader.ReadDeltaTime();
-                    break;
-                }
+                GatheredFur = reader.ReadBool();
             }
         }
     }

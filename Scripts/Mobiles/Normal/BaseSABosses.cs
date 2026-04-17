@@ -4,21 +4,25 @@ using Server.Items;
 
 namespace Server.Mobiles
 {
-    public abstract class BaseSABosses : BasePeerless
+    [TypeAlias("Server.Mobiles.BaseSABosses")]
+    public abstract class BaseSABoss : BasePeerless
     {
+        public override bool GiveMLSpecial { get { return false; } }
+
         Dictionary<Mobile, int> m_DamageEntries;
-        public BaseSABosses(AIType aiType, FightMode fightMode, int rangePerception, int rangeFight, double activeSpeed, double passiveSpeed)
+        public BaseSABoss(AIType aiType, FightMode fightMode, int rangePerception, int rangeFight, double activeSpeed, double passiveSpeed)
             : base(aiType, fightMode, rangePerception, rangeFight, activeSpeed, passiveSpeed)
         {
         }
 
-        public BaseSABosses(Serial serial)
+        public BaseSABoss(Serial serial)
             : base(serial)
         {
         }
 
         public abstract Type[] UniqueSAList { get; }
         public abstract Type[] SharedSAList { get; }
+
         public virtual bool NoGoodies
         {
             get
@@ -26,6 +30,9 @@ namespace Server.Mobiles
                 return false;
             }
         }
+
+        public override bool DropPrimer { get { return false; } }
+
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);
@@ -54,7 +61,7 @@ namespace Server.Mobiles
                 if (master != null)
                     damager = master;
 
-                this.RegisterDamage(damager, de.DamageGiven);
+                RegisterDamage(damager, de.DamageGiven);
             }
         }
 
@@ -63,10 +70,10 @@ namespace Server.Mobiles
             if (from == null || !from.Player)
                 return;
 
-            if (this.m_DamageEntries.ContainsKey(from))
-                this.m_DamageEntries[from] += amount;
+            if (m_DamageEntries.ContainsKey(from))
+                m_DamageEntries[from] += amount;
             else
-                this.m_DamageEntries.Add(from, amount);
+                m_DamageEntries.Add(from, amount);
         }
 
         public void AwardArtifact(Item artifact)
@@ -78,9 +85,9 @@ namespace Server.Mobiles
 
             Dictionary<Mobile, int> validEntries = new Dictionary<Mobile, int>();
 
-            foreach (KeyValuePair<Mobile, int> kvp in this.m_DamageEntries)
+            foreach (KeyValuePair<Mobile, int> kvp in m_DamageEntries)
             {
-                if (this.IsEligible(kvp.Key, artifact))
+                if (IsEligible(kvp.Key, artifact))
                 {
                     validEntries.Add(kvp.Key, kvp.Value);
                     totalDamage += kvp.Value;
@@ -91,13 +98,13 @@ namespace Server.Mobiles
 
             totalDamage = 0;
 
-            foreach (KeyValuePair<Mobile, int> kvp in this.m_DamageEntries)
+            foreach (KeyValuePair<Mobile, int> kvp in m_DamageEntries)
             {
                 totalDamage += kvp.Value;
 
                 if (totalDamage > randomDamage)
                 {
-                    this.GiveArtifact(kvp.Key, artifact);
+                    GiveArtifact(kvp.Key, artifact);
                     break;
                 }
             }
@@ -120,16 +127,16 @@ namespace Server.Mobiles
 
         public bool IsEligible(Mobile m, Item Artifact)
         {
-            return m.Player && m.Alive && m.InRange(this.Location, 32) && m.Backpack != null && m.Backpack.CheckHold(m, Artifact, false);
+            return m.Player && m.Alive && m.InRange(Location, 32) && m.Backpack != null && m.Backpack.CheckHold(m, Artifact, false);
         }
 
         public Item GetArtifact()
         {
             double random = Utility.RandomDouble();
             if (0.05 >= random)
-                return this.CreateArtifact(this.UniqueSAList);
+                return CreateArtifact(UniqueSAList);
             else if (0.15 >= random)
-                return this.CreateArtifact(this.SharedSAList);
+                return CreateArtifact(SharedSAList);
 
             return null;
         }
@@ -150,12 +157,12 @@ namespace Server.Mobiles
 
         public override bool OnBeforeDeath()
         {
-            if (!this.NoKillAwards)
+            if (!NoKillAwards)
             {
-                this.m_DamageEntries = new Dictionary<Mobile, int>();
+                m_DamageEntries = new Dictionary<Mobile, int>();
 
-                this.RegisterDamageTo(this);
-                this.AwardArtifact(this.GetArtifact());
+                RegisterDamageTo(this);
+                AwardArtifact(GetArtifact());
             }
 
             return base.OnBeforeDeath();
@@ -163,10 +170,10 @@ namespace Server.Mobiles
 
         public override void OnDeath(Container c)
         {
-            if (this.Map == Map.Felucca || this.Map == Map.TerMur)
+            if (Map == Map.Felucca || Map == Map.TerMur)
             {
                 //TODO: Confirm SE change or AoS one too?
-                List<DamageStore> rights = BaseCreature.GetLootingRights(this.DamageEntries, this.HitsMax);
+                List<DamageStore> rights = GetLootingRights();
                 List<Mobile> toGive = new List<Mobile>();
 
                 for (int i = rights.Count - 1; i >= 0; --i)

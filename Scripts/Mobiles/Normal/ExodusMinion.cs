@@ -61,6 +61,13 @@ namespace Server.Mobiles
         {
         }
 
+        public override bool AutoDispel
+        {
+            get
+            {
+                return true;
+            }
+        }
         public bool FieldActive
         {
             get
@@ -89,13 +96,7 @@ namespace Server.Mobiles
                 return true;
             }
         }
-        public override bool AutoDispel
-        {
-            get
-            {
-                return true;
-            }
-        }
+
         public override bool BardImmune
         {
             get
@@ -220,6 +221,16 @@ namespace Server.Mobiles
             AOS.Damage(to, this, 50, 0, 0, 0, 0, 100);
         }
 
+        public override void OnDeath(Container c)
+        {
+            base.OnDeath(c);
+
+            if (0.2 > Utility.RandomDouble())
+            {
+                c.DropItem(new MechanicalComponent());
+            }
+        }
+
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);
@@ -232,9 +243,6 @@ namespace Server.Mobiles
             int version = reader.ReadInt();
 
             this.m_FieldActive = this.CanUseField;
-
-            if (this.Name == "Exodus Minion")
-                this.Name = "exodus minion";
         }
     }
 }

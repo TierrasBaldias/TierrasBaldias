@@ -72,13 +72,13 @@ namespace Server.Spells.Fifth
                 else
                     duration = TimeSpan.FromSeconds(Utility.Random(80, 40));
 
-                BaseCreature.Summon(new BladeSpirits(), false, this.Caster, new Point3D(p), 0x212, duration);
+                BaseCreature.Summon(new BladeSpirits(true), false, this.Caster, new Point3D(p), 0x212, duration);
             }
 
             this.FinishSequence();
         }
 
-        private class InternalTarget : Target
+        public class InternalTarget : Target
         {
             private BladeSpiritsSpell m_Owner;
             public InternalTarget(BladeSpiritsSpell owner)

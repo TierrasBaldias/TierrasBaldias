@@ -1,99 +1,75 @@
 using System;
-using Server.Items;
 
 namespace Server.Mobiles
 {
-    [CorpseName("an fire daemon corpse")]
-    public class FireDaemon : BaseCreature
+    [CorpseName("a fire daemon corpse")]
+    public class FireDaemon : BaseCreature, IAuraCreature
     {
         [Constructable]
         public FireDaemon()
             : base(AIType.AI_Mage, FightMode.Closest, 10, 1, 0.2, 0.4)
         {
-            this.Name = "an fire daemon";
-            this.Body = 0x310;
-            this.BaseSoundID = 0x47D;
+            Name = "a fire daemon";
+            Body = 9;
+            BaseSoundID = 0x47D;
+            Hue = 1636;
 
-            this.SetStr(549, 1199);
-            this.SetDex(136, 206);
-            this.SetInt(202, 336);
+            SetStr(504, 539);
+            SetDex(126, 145);
+            SetInt(329, 364);
 
-            this.SetHits(1111, 1478);
+            SetHits(1026, 1174);
 
-            this.SetDamage(22, 29);
+            SetDamage(7, 14);
 
-            this.SetDamageType(ResistanceType.Physical, 50);
-            this.SetDamageType(ResistanceType.Fire, 25);
-            this.SetDamageType(ResistanceType.Energy, 25);
+            SetDamageType(ResistanceType.Physical, 20);
+            SetDamageType(ResistanceType.Fire, 80);
 
-            this.SetResistance(ResistanceType.Physical, 48, 93);
-            this.SetResistance(ResistanceType.Fire, 60, 100);
-            this.SetResistance(ResistanceType.Cold, -8, 57);
-            this.SetResistance(ResistanceType.Poison, 30, 100);
-            this.SetResistance(ResistanceType.Energy, 37, 50);
+            SetResistance(ResistanceType.Physical, 45, 60);
+            SetResistance(ResistanceType.Fire, 100);
+            SetResistance(ResistanceType.Cold, -10, 0);
+            SetResistance(ResistanceType.Poison, 20, 30);
+            SetResistance(ResistanceType.Energy, 30, 40);
 
-            this.SetSkill(SkillName.MagicResist, 98.1, 132.6);
-            this.SetSkill(SkillName.Tactics, 86.9, 95.5);
-            this.SetSkill(SkillName.Wrestling, 42.2, 98.8);
-            this.SetSkill(SkillName.Magery, 97.1, 100.8);
-            this.SetSkill(SkillName.EvalInt, 91.1, 91.8);
-            this.SetSkill(SkillName.Meditation, 45.4, 94.1);
+            SetSkill(SkillName.Anatomy, 75.5, 84.9);
+            SetSkill(SkillName.MagicResist, 95.7, 109.8);
+            SetSkill(SkillName.Tactics, 81.0, 98.6);
+            SetSkill(SkillName.Wrestling, 40.2, 78.7);
+            SetSkill(SkillName.EvalInt, 91.1, 104.5);
+            SetSkill(SkillName.Magery, 91.3, 105.0);
+            SetSkill(SkillName.Meditation, 90.1, 103.7);
+            SetSkill(SkillName.DetectHidden, 66.0);
 
-            this.Fame = 7000;
-            this.Karma = -10000;
+            Fame = 15000;
+            Karma = -15000;
 
-            this.VirtualArmor = 55;
-        }
+            VirtualArmor = 58;
+
+            SetSpecialAbility(SpecialAbility.DragonBreath);
+            SetAreaEffect(AreaEffect.AuraDamage);
+        }        
 
         public FireDaemon(Serial serial)
             : base(serial)
         {
         }
 
-        public override Poison PoisonImmune
+        public override bool CanRummageCorpses { get { return true; } }
+        public override Poison PoisonImmune { get { return Poison.Regular; } }
+        public override int TreasureMapLevel { get { return 4; } }
+        public override int Meat { get { return 1; } }
+
+        public void AuraEffect(Mobile m)
         {
-            get
-            {
-                return Poison.Deadly;
-            }
-        }
-        public override WeaponAbility GetWeaponAbility()
-        {
-            return WeaponAbility.ConcussionBlow;
+            m.SendLocalizedMessage(1008112); // The intense heat is damaging you!
         }
 
         public override void GenerateLoot()
         {
-            this.AddLoot(LootPack.Average, 2);
+            AddLoot(LootPack.FilthyRich);
+            AddLoot(LootPack.Rich);
         }
-        public override void OnDeath(Container c)
-        {
 
-            base.OnDeath(c);
-            Region reg = Region.Find(c.GetWorldLocation(), c.Map);
-            if (1.0 > Utility.RandomDouble() && reg.Name == "Crimson Veins")
-            {
-                if (Utility.RandomDouble() < 0.6)
-                    c.DropItem(new EssencePrecision());                
-                if (Utility.RandomDouble() < 0.6)
-                    c.DropItem(new DaemonClaw());
-            }
-            
-            if (1.0 > Utility.RandomDouble() && reg.Name == "Fire Temple Ruins")
-            {
-                if (Utility.RandomDouble() < 0.6)
-                    c.DropItem(new EssenceOrder());
-                if (Utility.RandomDouble() < 0.6)
-                    c.DropItem(new DaemonClaw());
-            }
-            if (1.0 > Utility.RandomDouble() && reg.Name == "Lava Caldera")
-            {
-                if (Utility.RandomDouble() < 0.6)
-                    c.DropItem(new EssencePassion());
-                if (Utility.RandomDouble() < 0.6)
-                    c.DropItem(new DaemonClaw());
-            }
-        }
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);

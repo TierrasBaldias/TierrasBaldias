@@ -56,6 +56,9 @@ namespace Server.Mobiles
                 return 4;
             }
         }
+
+        public override TribeType Tribe { get { return TribeType.Terathan; } }
+
         public override OppositionGroup OppositionGroup
         {
             get
@@ -79,9 +82,6 @@ namespace Server.Mobiles
         {
             base.Deserialize(reader);
             int version = reader.ReadInt();
-
-            if (this.BaseSoundID == 589)
-                this.BaseSoundID = 594;
         }
     }
 }

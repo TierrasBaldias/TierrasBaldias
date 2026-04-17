@@ -1,7 +1,9 @@
 using System;
+using Server.Engines.Craft;
 
 namespace Server.Items
 {
+    [Alterable(typeof(DefBlacksmithy), typeof(DualPointedSpear))]
     [FlipableAttribute(0x2D20, 0x2D2C)]
     public class ElvenSpellblade : BaseKnife
     {
@@ -108,14 +110,21 @@ namespace Server.Items
             {
                 return 30;
             }
-        }// TODO
+        }
         public override int InitMaxHits
         {
             get
             {
                 return 60;
             }
-        }// TODO
+        }
+        public override SkillName DefSkill
+        {
+            get
+            {
+                return SkillName.Fencing;
+            }
+        }
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);

@@ -41,9 +41,9 @@ namespace Server.Mobiles
 
             VirtualArmor = 24;
 
-            QLPoints = 2;
-
             PackItem(new SulfurousAsh());
+
+            SetSpecialAbility(SpecialAbility.DragonBreath);
         }
 
         public LavaSnake(Serial serial)
@@ -56,11 +56,6 @@ namespace Server.Mobiles
             get { return true; }
         }
 
-        public override bool HasBreath
-        {
-            get { return true; }
-        } // fire breath enabled
-
         public override int Meat
         {
             get { return 1; }
@@ -69,13 +64,6 @@ namespace Server.Mobiles
         public override void GenerateLoot()
         {
             AddLoot(LootPack.Poor);
-        }
-
-        public override void OnDeath(Container c)
-        {
-            base.OnDeath(c);
-
-            SARegionDrops.GetSADrop(c);
         }
 
         public override void Serialize(GenericWriter writer)

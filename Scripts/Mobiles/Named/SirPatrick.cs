@@ -10,41 +10,49 @@ namespace Server.Mobiles
         [Constructable]
         public SirPatrick()
         {
+            Name = "Sir Patrick";
+            Hue = 0x47E;
 
-            this.Name = "Sir Patrick";
-            this.Hue = 0x47E;
+            SetStr(208, 319);
+            SetDex(98, 132);
+            SetInt(45, 91);
 
-            this.SetStr(208, 319);
-            this.SetDex(98, 132);
-            this.SetInt(45, 91);
+            SetHits(616, 884);
 
-            this.SetHits(616, 884);
+            SetDamage(15, 25);
 
-            this.SetDamage(15, 25);
+            SetDamageType(ResistanceType.Physical, 40);
+            SetDamageType(ResistanceType.Cold, 60);
 
-            this.SetDamageType(ResistanceType.Physical, 40);
-            this.SetDamageType(ResistanceType.Cold, 60);
+            SetResistance(ResistanceType.Physical, 55, 62);
+            SetResistance(ResistanceType.Fire, 40, 48);
+            SetResistance(ResistanceType.Cold, 71, 80);
+            SetResistance(ResistanceType.Poison, 40, 50);
+            SetResistance(ResistanceType.Energy, 50, 60);
 
-            this.SetResistance(ResistanceType.Physical, 55, 62);
-            this.SetResistance(ResistanceType.Fire, 40, 48);
-            this.SetResistance(ResistanceType.Cold, 71, 80);
-            this.SetResistance(ResistanceType.Poison, 40, 50);
-            this.SetResistance(ResistanceType.Energy, 50, 60);
+            SetSkill(SkillName.Wrestling, 126.3, 136.5);
+            SetSkill(SkillName.Tactics, 128.5, 143.8);
+            SetSkill(SkillName.MagicResist, 102.8, 117.9);
+            SetSkill(SkillName.Anatomy, 127.5, 137.2);
 
-            this.SetSkill(SkillName.Wrestling, 126.3, 136.5);
-            this.SetSkill(SkillName.Tactics, 128.5, 143.8);
-            this.SetSkill(SkillName.MagicResist, 102.8, 117.9);
-            this.SetSkill(SkillName.Anatomy, 127.5, 137.2);
+            Fame = 18000;
+            Karma = -18000;
 
-            this.Fame = 18000;
-            this.Karma = -18000;
+            for (int i = 0; i < Utility.RandomMinMax(0, 1); i++)
+            {
+                PackItem(Loot.RandomScroll(0, Loot.ArcanistScrollTypes.Length, SpellbookType.Arcanist));
+            }
+
+            SetSpecialAbility(SpecialAbility.LifeDrain);
         }
 
         public SirPatrick(Serial serial)
             : base(serial)
         {
         }
+
 		public override bool CanBeParagon { get { return false; } }
+
         public override void OnDeath( Container c )
         {
             base.OnDeath( c );
@@ -56,68 +64,16 @@ namespace Server.Mobiles
             c.DropItem( new AssassinChest() );
         }
 
-        public override bool GivesMLMinorArtifact
+        /*public override bool GivesMLMinorArtifact
         {
             get
             {
                 return true;
             }
-        }
+        }*/
         public override void GenerateLoot()
         {
-            this.AddLoot(LootPack.UltraRich, 2);
-        }
-
-        public override void OnGaveMeleeAttack(Mobile defender)
-        {
-            base.OnGaveMeleeAttack(defender);
-
-            if (Utility.RandomDouble() < 0.1)
-                this.DrainLife();
-        }
-
-        public override void OnGotMeleeAttack(Mobile attacker)
-        {
-            base.OnGotMeleeAttack(attacker);
-
-            if (Utility.RandomDouble() < 0.1)
-                this.DrainLife();
-        }
-
-        public virtual void DrainLife()
-        {
-            List<Mobile> list = new List<Mobile>();
-
-            foreach (Mobile m in this.GetMobilesInRange(2))
-            {
-                if (m == this || !this.CanBeHarmful(m, false) || (Core.AOS && !this.InLOS(m)))
-                    continue;
-
-                if (m is BaseCreature)
-                {
-                    BaseCreature bc = (BaseCreature)m;
-
-                    if (bc.Controlled || bc.Summoned || bc.Team != this.Team)
-                        list.Add(m);
-                }
-                else if (m.Player)
-                {
-                    list.Add(m);
-                }
-            }
-
-            foreach (Mobile m in list)
-            {
-                this.DoHarmful(m);
-
-                m.FixedParticles(0x374A, 10, 15, 5013, 0x455, 0, EffectLayer.Waist);
-                m.PlaySound(0x1EA);
-
-                int drain = Utility.RandomMinMax(14, 30);
-
-                this.Hits += drain;
-                m.Damage(drain, this);
-            }
+            AddLoot(LootPack.UltraRich, 2);
         }
 
         public override void Serialize(GenericWriter writer)

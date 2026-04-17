@@ -12,7 +12,7 @@ using Server.Spells.Fourth;
 using Server.Spells.Fifth;
 using Server.Spells.Ninjitsu;
 
-namespace Server.Spells.Mystic
+namespace Server.Spells.Mysticism
 {
     public enum BuffType
     {
@@ -23,34 +23,37 @@ namespace Server.Spells.Mystic
         Transformation,
         StrBonus,
         DexBonus,
-        IntBonus
+        IntBonus,
+        BarrabHemolymph,
+        UraliTrance,
+        Bless
     }
 
-	public class PurgeMagicSpell : MysticSpell
-	{
+    public class PurgeMagicSpell : MysticSpell
+    {
         public override SpellCircle Circle { get { return SpellCircle.Second; } }
 
-		private static SpellInfo m_Info = new SpellInfo(
-				"Purge", "An Ort Sanct ",
-				230,
-				9022,
-				Reagent.Garlic,
-				Reagent.MandrakeRoot,
-				Reagent.SulfurousAsh,
-				Reagent.FertileDirt
-			);
+        private static SpellInfo m_Info = new SpellInfo(
+                "Purge", "An Ort Sanct ",
+                230,
+                9022,
+                Reagent.Garlic,
+                Reagent.MandrakeRoot,
+                Reagent.SulfurousAsh,
+                Reagent.FertileDirt
+            );
 
-		public PurgeMagicSpell( Mobile caster, Item scroll ) : base( caster, scroll, m_Info )
-		{
-		}
+        public PurgeMagicSpell(Mobile caster, Item scroll) : base(caster, scroll, m_Info)
+        {
+        }
 
-		public override void OnCast()
-		{
-			Caster.Target = new MysticSpellTarget( this, TargetFlags.Harmful );
-		}
+        public override void OnCast()
+        {
+            Caster.Target = new InternalTarget(this);
+        }
 
-		public override void OnTarget( Object o )
-		{
+        public void OnTarget(object o)
+        {
             Mobile target = o as Mobile;
 
             if (target == null)
@@ -62,7 +65,7 @@ namespace Server.Spells.Mystic
             }
             else if (m_ImmuneTable.ContainsKey(target) || m_CurseTable.ContainsKey(target))
             {
-                Caster.SendMessage("You may not use the Purge Magic spell while they are under its curse.");
+                Caster.SendLocalizedMessage(1080119); // Your Purge Magic has been resisted!
             }
             else if (CheckHSequence(target))
             {
@@ -73,6 +76,8 @@ namespace Server.Spells.Mystic
                 }
                 else
                 {
+                    SpellHelper.CheckReflect((int)Circle, Caster, ref target);
+
                     Caster.PlaySound(0x655);
                     Effects.SendLocationParticles(EffectItem.Create(target.Location, target.Map, EffectItem.DefaultDuration), 0x3728, 1, 13, 0x834, 0, 0x13B2, 0);
 
@@ -103,20 +108,33 @@ namespace Server.Spells.Mystic
                             case BuffType.StrBonus:
                                 arg = "strength bonus";
                                 target.RemoveStatMod("[Magic] Str Buff");
-                                BuffInfo.RemoveBuff(target, BuffIcon.Bless);
                                 BuffInfo.RemoveBuff(target, BuffIcon.Strength);
                                 break;
                             case BuffType.DexBonus:
                                 arg = "dexterity bonus";
-								target.RemoveStatMod("[Magic] Dex Buff");
-                                BuffInfo.RemoveBuff(target, BuffIcon.Bless);
+                                target.RemoveStatMod("[Magic] Dex Buff");
                                 BuffInfo.RemoveBuff(target, BuffIcon.Agility);
                                 break;
                             case BuffType.IntBonus:
                                 arg = "intelligence bonus";
-								target.RemoveStatMod("[Magic] Int Buff");
-                                BuffInfo.RemoveBuff(target, BuffIcon.Bless);
+                                target.RemoveStatMod("[Magic] Int Buff");
                                 BuffInfo.RemoveBuff(target, BuffIcon.Cunning);
+                                break;
+                            case BuffType.BarrabHemolymph:
+                                arg = "Barrab hemolymph";
+                                EodonianPotion.RemoveEffects(target, PotionEffect.Barrab);
+                                break;
+                            case BuffType.UraliTrance:
+                                arg = "Urali Trance";
+                                EodonianPotion.RemoveEffects(target, PotionEffect.Urali);
+                                break;
+                            case BuffType.Bless:
+                                arg = "bless";
+                                target.RemoveStatMod("[Magic] Str Buff");
+                                target.RemoveStatMod("[Magic] Dex Buff");
+                                target.RemoveStatMod("[Magic] Int Buff");
+                                BuffInfo.RemoveBuff(target, BuffIcon.Bless);
+                                BlessSpell.RemoveBless(target);
                                 break;
                         }
 
@@ -145,7 +163,7 @@ namespace Server.Spells.Mystic
             }
 
             FinishSequence();
-		}
+        }
 
         public BuffType GetRandomBuff(Mobile target)
         {
@@ -165,17 +183,30 @@ namespace Server.Spells.Mystic
             if (context != null && context.Type != typeof(AnimalForm))
                 buffs.Add(BuffType.Transformation);
 
-            StatMod mod = target.GetStatMod("[Magic] Str Buff");
-            if (mod != null)
-                buffs.Add(BuffType.StrBonus);
+            if (BlessSpell.IsBlessed(target))
+            {
+                buffs.Add(BuffType.Bless);
+            }
+            else
+            {
+                StatMod mod = target.GetStatMod("[Magic] Str Buff");
+                if (mod != null)
+                    buffs.Add(BuffType.StrBonus);
 
-			mod = target.GetStatMod("[Magic] Dex Buff");
-            if (mod != null)
-                buffs.Add(BuffType.DexBonus);
+                mod = target.GetStatMod("[Magic] Dex Buff");
+                if (mod != null)
+                    buffs.Add(BuffType.DexBonus);
 
-			mod = target.GetStatMod("[Magic] Int Buff");
-            if (mod != null)
-                buffs.Add(BuffType.IntBonus);
+                mod = target.GetStatMod("[Magic] Int Buff");
+                if (mod != null)
+                    buffs.Add(BuffType.IntBonus);
+            }
+
+            if (EodonianPotion.IsUnderEffects(target, PotionEffect.Barrab))
+                buffs.Add(BuffType.BarrabHemolymph);
+
+            if (EodonianPotion.IsUnderEffects(target, PotionEffect.Urali))
+                buffs.Add(BuffType.UraliTrance);
 
             if (buffs.Count == 0)
                 return BuffType.None;
@@ -198,15 +229,15 @@ namespace Server.Spells.Mystic
             }
         }
 
-        public static void RemoveCurse(Mobile from)
+        public static void RemoveCurse(Mobile from, Mobile caster)
         {
             if (m_CurseTable.ContainsKey(from))
             {
                 m_CurseTable[from].Stop();
 
-                if (DateTime.Now > m_CurseTable[from].StartTime)
+                if (DateTime.UtcNow > m_CurseTable[from].StartTime)
                 {
-                    TimeSpan inEffect = DateTime.Now - m_CurseTable[from].StartTime;
+                    TimeSpan inEffect = DateTime.UtcNow - m_CurseTable[from].StartTime;
 
                     int damage = 5 * (int)inEffect.TotalSeconds;
 
@@ -215,17 +246,17 @@ namespace Server.Spells.Mystic
 
                     m_CurseTable.Remove(from);
 
-                    SpellHelper.Damage(TimeSpan.Zero, from, damage, 0, 0, 0, 0, 0, 100, 0);
+                    AOS.Damage(from, caster, damage, 0, 0, 0, 0, 0, 100, 0);
                 }
             }
 
-            m_ImmuneTable.Add(from, new ImmuneTimer(from, TimeSpan.FromSeconds(16)));
+            m_ImmuneTable[from] = new ImmuneTimer(from, TimeSpan.FromSeconds(16));
         }
 
         public static void OnMobileDoDamage(Mobile from)
         {
-            if (m_CurseTable.ContainsKey(from))
-                RemoveCurse(from);
+            if (from != null && m_CurseTable.ContainsKey(from))
+                RemoveCurse(from, m_CurseTable[from].Caster);
         }
 
         public static bool IsUnderCurseEffects(Mobile from)
@@ -263,14 +294,49 @@ namespace Server.Spells.Mystic
             {
                 m_Mobile = mob;
                 m_Caster = caster;
-                m_StartTime = DateTime.Now;
+                m_StartTime = DateTime.UtcNow;
                 Start();
             }
 
             protected override void OnTick()
             {
-                PurgeMagicSpell.RemoveCurse(m_Mobile);
+                PurgeMagicSpell.RemoveCurse(m_Mobile, m_Caster);
             }
         }
-	}
+
+        public class InternalTarget : Target
+        {
+            public PurgeMagicSpell Owner { get; set; }
+
+            public InternalTarget(PurgeMagicSpell owner)
+                : this(owner, false)
+            {
+            }
+
+            public InternalTarget(PurgeMagicSpell owner, bool allowland)
+                : base(12, allowland, TargetFlags.Harmful)
+            {
+                Owner = owner;
+            }
+
+            protected override void OnTarget(Mobile from, object o)
+            {
+                if (o == null)
+                    return;
+
+                if (!from.CanSee(o))
+                    from.SendLocalizedMessage(500237); // Target can not be seen.
+                else
+                {
+                    SpellHelper.Turn(from, o);
+                    Owner.OnTarget(o);
+                }
+            }
+
+            protected override void OnTargetFinish(Mobile from)
+            {
+                Owner.FinishSequence();
+            }
+        }
+    }
 }

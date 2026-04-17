@@ -1,6 +1,8 @@
 using System;
 using Server.Items;
 using Server.Targeting;
+using Server.Mobiles;
+using System.Collections.Generic;
 
 namespace Server.Engines.Craft
 {
@@ -15,20 +17,52 @@ namespace Server.Engines.Craft
         Failure,
         Broken,
         NoResources,
-        NoSkill
+        NoSkill,
+        Enchanted
     }
 
     public class Enhance
     {
-        public static EnhanceResult Invoke(Mobile from, CraftSystem craftSystem, BaseTool tool, Item item, CraftResource resource, Type resType, ref object resMessage)
+        private static Dictionary<Type, CraftSystem> _SpecialTable;
+
+        public static void Initialize()
+        {
+            _SpecialTable = new Dictionary<Type, CraftSystem>();
+
+            _SpecialTable[typeof(ClockworkLeggings)] = DefBlacksmithy.CraftSystem;
+            _SpecialTable[typeof(GargishClockworkLeggings)] = DefBlacksmithy.CraftSystem;
+        }
+
+        private static bool IsSpecial(Item item, CraftSystem system)
+        {
+            foreach (KeyValuePair<Type, CraftSystem> kvp in _SpecialTable)
+            {
+                if (kvp.Key == item.GetType() && kvp.Value == system)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool CanEnhance(Item item)
+        {
+            return item is BaseArmor || item is BaseWeapon || item is FishingPole;
+        }
+
+        public static EnhanceResult Invoke(Mobile from, CraftSystem craftSystem, ITool tool, Item item, CraftResource resource, Type resType, ref object resMessage)
         {
             if (item == null)
+                return EnhanceResult.BadItem;
+			
+			if (item is GargishNecklace || item is GargishEarrings)
                 return EnhanceResult.BadItem;
 
             if (!item.IsChildOf(from.Backpack))
                 return EnhanceResult.NotInBackpack;
 
-            if (!(item is BaseArmor) && !(item is BaseWeapon))
+            IResource ires = item as IResource;
+
+            if (!CanEnhance(item) || ires == null)
                 return EnhanceResult.BadItem;
 
             if (item is IArcaneEquip)
@@ -38,11 +72,14 @@ namespace Server.Engines.Craft
                     return EnhanceResult.BadItem;
             }
 
+            if (item is BaseWeapon && Spells.Mysticism.EnchantSpell.IsUnderSpellEffects(from, (BaseWeapon)item))
+                return EnhanceResult.Enchanted;
+
             if (CraftResources.IsStandard(resource))
                 return EnhanceResult.BadResource;
-			
+
             int num = craftSystem.CanCraft(from, tool, item.GetType());
-			
+
             if (num > 0)
             {
                 resMessage = num;
@@ -51,8 +88,15 @@ namespace Server.Engines.Craft
 
             CraftItem craftItem = craftSystem.CraftItems.SearchFor(item.GetType());
 
+            if (IsSpecial(item, craftSystem))
+            {
+                craftItem = craftSystem.CraftItems.SearchForSubclass(item.GetType());
+            }
+            
             if (craftItem == null || craftItem.Resources.Count == 0)
+            {
                 return EnhanceResult.BadItem;
+            }
 
             #region Mondain's Legacy
             if (craftItem.ForceNonExceptional)
@@ -77,6 +121,9 @@ namespace Server.Engines.Craft
 
             if (!craftItem.ConsumeRes(from, resType, craftSystem, ref resHue, ref maxAmount, ConsumeType.None, ref resMessage))
                 return EnhanceResult.NoResources;
+
+            if (!CraftResources.IsStandard(ires.Resource))
+                return EnhanceResult.AlreadyEnhanced;
 
             if (craftSystem is DefBlacksmithy)
             {
@@ -107,8 +154,8 @@ namespace Server.Engines.Craft
             {
                 BaseWeapon weapon = (BaseWeapon)item;
 
-                if (!CraftResources.IsStandard(weapon.Resource))
-                    return EnhanceResult.AlreadyEnhanced;
+                if(weapon.ExtendedWeaponAttributes.AssassinHoned > 0)
+                    return EnhanceResult.BadItem;
 
                 baseChance = 20;
 
@@ -127,12 +174,9 @@ namespace Server.Engines.Craft
                 lreqBonus = (attributes.WeaponLowerRequirements > 0);
                 dincBonus = (dinc > 0);
             }
-            else
+            else if (item is BaseArmor)
             {
                 BaseArmor armor = (BaseArmor)item;
-
-                if (!CraftResources.IsStandard(armor.Resource))
-                    return EnhanceResult.AlreadyEnhanced;
 
                 baseChance = 20;
 
@@ -157,6 +201,18 @@ namespace Server.Engines.Craft
                 lreqBonus = (attributes.ArmorLowerRequirements > 0);
                 dincBonus = false;
             }
+            else if (item is FishingPole)
+            {
+                FishingPole pole = (FishingPole)item;
+
+                baseChance = 20;
+
+                luck = pole.Attributes.Luck;
+
+                luckBonus = (attributes.ArmorLuck > 0);
+                lreqBonus = (attributes.ArmorLowerRequirements > 0);
+                dincBonus = false;
+            }
 
             int skill = from.Skills[craftSystem.MainSkill].Fixed / 10;
 
@@ -164,6 +220,8 @@ namespace Server.Engines.Craft
                 baseChance -= (skill - 90) / 10;
 
             EnhanceResult res = EnhanceResult.Success;
+
+            PlayerMobile user = from as PlayerMobile;
 
             if (physBonus)
                 CheckResult(ref res, baseChance + phys);
@@ -192,7 +250,14 @@ namespace Server.Engines.Craft
             if (dincBonus)
                 CheckResult(ref res, baseChance + (dinc / 4));
 
-            switch ( res )
+            if (user.NextEnhanceSuccess)
+            {
+                user.NextEnhanceSuccess = false;
+                user.SendLocalizedMessage(1149969); // The magical aura that surrounded you disipates and you feel that your item enhancement chances have returned to normal.
+                res = EnhanceResult.Success;
+            }
+
+            switch (res)
             {
                 case EnhanceResult.Broken:
                     {
@@ -207,142 +272,32 @@ namespace Server.Engines.Craft
                         if (!craftItem.ConsumeRes(from, resType, craftSystem, ref resHue, ref maxAmount, ConsumeType.All, ref resMessage))
                             return EnhanceResult.NoResources;
 
+                        if (craftItem.CaddelliteCraft)
+                        {
+                            Caddellite.TryInfuse(from, item, craftSystem);
+                        }
+
+                        if (item is IResource)
+                            ((IResource)item).Resource = resource;
+
                         if (item is BaseWeapon)
                         {
                             BaseWeapon w = (BaseWeapon)item;
-
-                            w.Resource = resource;
-
-                            #region Mondain's Legacy
-                            if (resource != CraftResource.Heartwood)
-                            {
-                                w.Attributes.WeaponDamage += attributes.WeaponDamage;
-                                w.Attributes.WeaponSpeed += attributes.WeaponSwingSpeed;
-                                w.Attributes.AttackChance += attributes.WeaponHitChance;
-                                w.Attributes.RegenHits += attributes.WeaponRegenHits;			
-                                w.WeaponAttributes.HitLeechHits += attributes.WeaponHitLifeLeech;
-                            }
-                            else
-                            {
-                                switch ( Utility.Random(6) )
-                                {
-                                    case 0:
-                                        w.Attributes.WeaponDamage += attributes.WeaponDamage;
-                                        break;
-                                    case 1:
-                                        w.Attributes.WeaponSpeed += attributes.WeaponSwingSpeed;
-                                        break;
-                                    case 2:
-                                        w.Attributes.AttackChance += attributes.WeaponHitChance;
-                                        break;
-                                    case 3:
-                                        w.Attributes.Luck += attributes.WeaponLuck;
-                                        break;
-                                    case 4:
-                                        w.WeaponAttributes.LowerStatReq += attributes.WeaponLowerRequirements;
-                                        break;
-                                    case 5:
-                                        w.WeaponAttributes.HitLeechHits += attributes.WeaponHitLifeLeech;
-                                        break;
-                                }
-                            }
-                            #endregion
+                            w.DistributeMaterialBonus(attributes);
 
                             int hue = w.GetElementalDamageHue();
+
                             if (hue > 0)
                                 w.Hue = hue;
                         }
-                        #region Mondain's Legacy
-                        else if (item is BaseShield)
+                        else if (item is BaseArmor)
                         {
-                            BaseShield shield = (BaseShield)item;
-
-                            shield.Resource = resource;
-
-                            switch ( resource )
-                            {
-                                case CraftResource.AshWood: 
-                                    shield.ArmorAttributes.LowerStatReq += 20; 
-                                    break;
-                                case CraftResource.YewWood: 
-                                    shield.Attributes.RegenHits += 1; 
-                                    break;
-                                case CraftResource.Heartwood:
-                                    switch ( Utility.Random(7) )
-                                    {
-                                        case 0:
-                                            shield.Attributes.BonusDex += 2;
-                                            break;
-                                        case 1:
-                                            shield.Attributes.BonusStr += 2;
-                                            break; 
-                                        case 2:
-                                            shield.Attributes.ReflectPhysical += 5;
-                                            break;
-                                        case 3:
-                                            shield.Attributes.SpellChanneling = 1;
-                                            shield.Attributes.CastSpeed = -1;
-                                            break;
-                                        case 4:
-                                            shield.ArmorAttributes.SelfRepair += 2;
-                                            break;			
-                                        case 5:
-                                            shield.PhysicalBonus += 5;
-                                            break;
-                                        case 6:
-                                            shield.ColdBonus += 3;
-                                            break;
-                                    }
-                                    break;
-                                case CraftResource.Bloodwood: 
-                                    shield.Attributes.RegenHits += 2;
-                                    shield.Attributes.Luck += 40;
-                                    break;
-                                case CraftResource.Frostwood:
-                                    shield.Attributes.SpellChanneling = 1; 
-                                    shield.Attributes.CastSpeed = -1;
-                                    break;
-                            }
+                            ((BaseArmor)item).DistributeMaterialBonus(attributes);
                         }
-                        #endregion
-                        else if (item is BaseArmor)	//Sanity
+                        else if (item is FishingPole)
                         {
-                            ((BaseArmor)item).Resource = resource;
-
-                            #region Mondain's Legacy
-                            BaseArmor armor = (BaseArmor)item;
-
-                            if (resource != CraftResource.Heartwood)
-                            {
-                                armor.Attributes.WeaponDamage += attributes.ArmorDamage;
-                                armor.Attributes.AttackChance += attributes.ArmorHitChance;
-                                armor.Attributes.RegenHits += attributes.ArmorRegenHits;				
-                                armor.ArmorAttributes.MageArmor += attributes.ArmorMage;
-                            }
-                            else
-                            {
-                                switch ( Utility.Random(5) )
-                                {
-                                    case 0:
-                                        armor.Attributes.WeaponDamage += attributes.ArmorDamage;
-                                        break;
-                                    case 1:
-                                        armor.Attributes.AttackChance += attributes.ArmorHitChance;
-                                        break;
-                                    case 2:
-                                        armor.ArmorAttributes.MageArmor += attributes.ArmorMage;
-                                        break;			 
-                                    case 3:
-                                        armor.Attributes.Luck += attributes.ArmorLuck;
-                                        break;
-                                    case 4:
-                                        armor.ArmorAttributes.LowerStatReq += attributes.ArmorLowerRequirements;
-                                        break;
-                                }
-                            }
-                            #endregion
+                            ((FishingPole)item).DistributeMaterialBonus(attributes);
                         }
-
                         break;
                     }
                 case EnhanceResult.Failure:
@@ -370,9 +325,10 @@ namespace Server.Engines.Craft
                 res = EnhanceResult.Broken;
         }
 
-        public static void BeginTarget(Mobile from, CraftSystem craftSystem, BaseTool tool)
+        public static void BeginTarget(Mobile from, CraftSystem craftSystem, ITool tool)
         {
             CraftContext context = craftSystem.GetContext(from);
+            PlayerMobile user = from as PlayerMobile;
 
             if (context == null)
                 return;
@@ -395,7 +351,15 @@ namespace Server.Engines.Craft
                     if (resource != CraftResource.None)
                     {
                         from.Target = new InternalTarget(craftSystem, tool, res.ItemType, resource);
-                        from.SendLocalizedMessage(1061004); // Target an item to enhance with the properties of your selected material.
+
+                        if (user.NextEnhanceSuccess)
+                        {
+                            from.SendLocalizedMessage(1149869, "100"); // Target an item to enhance with the properties of your selected material (Success Rate: ~1_VAL~%).
+                        }
+                        else
+                        {
+                            from.SendLocalizedMessage(1061004); // Target an item to enhance with the properties of your selected material.
+                        }
                     }
                     else
                     {
@@ -412,17 +376,17 @@ namespace Server.Engines.Craft
         private class InternalTarget : Target
         {
             private readonly CraftSystem m_CraftSystem;
-            private readonly BaseTool m_Tool;
+            private readonly ITool m_Tool;
             private readonly Type m_ResourceType;
             private readonly CraftResource m_Resource;
 
-            public InternalTarget(CraftSystem craftSystem, BaseTool tool, Type resourceType, CraftResource resource)
+            public InternalTarget(CraftSystem craftSystem, ITool tool, Type resourceType, CraftResource resource)
                 : base(2, false, TargetFlags.None)
             {
-                this.m_CraftSystem = craftSystem;
-                this.m_Tool = tool;
-                this.m_ResourceType = resourceType;
-                this.m_Resource = resource;
+                m_CraftSystem = craftSystem;
+                m_Tool = tool;
+                m_ResourceType = resourceType;
+                m_Resource = resource;
             }
 
             protected override void OnTarget(Mobile from, object targeted)
@@ -430,9 +394,9 @@ namespace Server.Engines.Craft
                 if (targeted is Item)
                 {
                     object message = null;
-                    EnhanceResult res = Enhance.Invoke(from, this.m_CraftSystem, this.m_Tool, (Item)targeted, this.m_Resource, this.m_ResourceType, ref message);
+                    EnhanceResult res = Enhance.Invoke(from, m_CraftSystem, m_Tool, (Item)targeted, m_Resource, m_ResourceType, ref message);
 
-                    switch ( res )
+                    switch (res)
                     {
                         case EnhanceResult.NotInBackpack:
                             message = 1061005;
@@ -458,9 +422,12 @@ namespace Server.Engines.Craft
                         case EnhanceResult.NoSkill:
                             message = 1044153;
                             break; // You don't have the required skills to attempt this item.
+                        case EnhanceResult.Enchanted: 
+                            message = 1080131; 
+                            break; // You cannot enhance an item that is currently enchanted.
                     }
 
-                    from.SendGump(new CraftGump(from, this.m_CraftSystem, this.m_Tool, message));
+                    from.SendGump(new CraftGump(from, m_CraftSystem, m_Tool, message));
                 }
             }
         }

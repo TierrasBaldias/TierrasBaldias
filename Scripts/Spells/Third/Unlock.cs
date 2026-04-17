@@ -5,6 +5,11 @@ using Server.Targeting;
 
 namespace Server.Spells.Third
 {
+    public interface IMageUnlockable
+    {
+        void OnMageUnlock(Mobile from);
+    }
+
     public class UnlockSpell : MagerySpell
     {
         private static readonly SpellInfo m_Info = new SpellInfo(
@@ -56,23 +61,46 @@ namespace Server.Spells.Third
 
                     if (o is Mobile)
                         from.LocalOverheadMessage(MessageType.Regular, 0x3B2, 503101); // That did not need to be unlocked.
+                    else if (o is IMageUnlockable)
+                        ((IMageUnlockable)o).OnMageUnlock(from);
                     else if (!(o is LockableContainer))
                         from.SendLocalizedMessage(501666); // You can't unlock that!
                     else
                     {
                         LockableContainer cont = (LockableContainer)o;
 
-                        if (Multis.BaseHouse.CheckSecured(cont)) 
+                        if (Multis.BaseHouse.CheckSecured(cont))
                             from.SendLocalizedMessage(503098); // You cannot cast this on a secure item.
                         else if (!cont.Locked)
                             from.LocalOverheadMessage(MessageType.Regular, 0x3B2, 503101); // That did not need to be unlocked.
                         else if (cont.LockLevel == 0)
                             from.SendLocalizedMessage(501666); // You can't unlock that!
+                        else if (cont is TreasureMapChest && ((TreasureMapChest)cont).Level > 2)
+                            from.LocalOverheadMessage(MessageType.Regular, 0x3B2, 503099); // My spell does not seem to have an effect on that lock.
                         else
                         {
-                            int level = (int)(from.Skills[SkillName.Magery].Value * 0.8) - 4;
+                            int level;
+                            int reqSkill;
 
-                            if (level >= cont.RequiredSkill && !(cont is TreasureMapChest && ((TreasureMapChest)cont).Level > 2))
+                            if (cont is TreasureMapChest && TreasureMapInfo.NewSystem)
+                            {
+                                level = (int)from.Skills[SkillName.Magery].Value;
+
+                                switch (((TreasureMapChest)cont).Level)
+                                {
+                                    default:
+                                    case 0: reqSkill = 50; break;
+                                    case 1: reqSkill = 80; break;
+                                    case 2: reqSkill = 100; break;
+                                }
+                            }
+                            else
+                            {
+                                level = (int)(from.Skills[SkillName.Magery].Value * 0.8) - 4;
+                                reqSkill = cont.RequiredSkill;
+                            }
+   
+                            if (level >= reqSkill)
                             {
                                 cont.Locked = false;
 

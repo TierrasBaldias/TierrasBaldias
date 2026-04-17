@@ -45,20 +45,15 @@ namespace Server.Mobiles
             ControlSlots = 1;
             MinTameSkill = 80.7;
 
-            QLPoints = 2;
-
             PackItem(new SulfurousAsh(Utility.Random(4, 10)));
+
+            SetSpecialAbility(SpecialAbility.DragonBreath);
         }
 
         public LavaLizard(Serial serial)
             : base(serial)
         {
         }
-
-        public override bool HasBreath
-        {
-            get { return true; }
-        } // fire breath enabled
 
         public override int Hides
         {
@@ -73,13 +68,6 @@ namespace Server.Mobiles
         public override void GenerateLoot()
         {
             AddLoot(LootPack.Meager);
-        }
-
-        public override void OnDeath(Container c)
-        {
-            base.OnDeath(c);
-
-            SARegionDrops.GetSADrop(c);
         }
 
         public override void Serialize(GenericWriter writer)

@@ -110,6 +110,12 @@ namespace Server.Spells.Bushido
             {
                 defender.Emote("*evades*"); // Yes.  Eew.  Blame OSI.
                 defender.FixedEffect(0x37B9, 10, 16);
+
+                if (Core.SA)
+                {
+                    defender.Animate(AnimationType.Block, 0);
+                }
+
                 return true;
             }
 
@@ -175,7 +181,10 @@ namespace Server.Spells.Bushido
             if (t != null)
                 t.Stop();
 
-            t = new InternalTimer(m, GetEvadeDuration(m));
+            TimeSpan duration = GetEvadeDuration(m);
+            t = new InternalTimer(m, duration);
+
+            BuffInfo.AddBuff(m, new BuffInfo(BuffIcon.Evasion, 1060597, 1153810, duration, m));
 
             m_Table[m] = t;
 
@@ -190,6 +199,8 @@ namespace Server.Spells.Bushido
                 t.Stop();
 
             m_Table.Remove(m);
+
+            BuffInfo.RemoveBuff(m, BuffIcon.Evasion);
 
             OnEffectEnd(m, typeof(Evasion));
         }

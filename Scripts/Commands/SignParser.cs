@@ -164,6 +164,9 @@ namespace Server.Commands
 
 						while ((line = ip.ReadLine()) != null)
 						{
+                            if (string.IsNullOrEmpty(line))
+                                continue;
+
 							string[] split = line.Split(' ');
 
 							SignEntry e = new SignEntry(

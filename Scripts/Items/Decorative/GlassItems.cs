@@ -1,4 +1,6 @@
 using System;
+using Server.Targeting;
+using Server.Mobiles;
 
 namespace Server.Items
 {
@@ -9,8 +11,8 @@ namespace Server.Items
         public SmallFlask()
             : base(0x182E)
         {
-            this.Weight = 1.0;
-            this.Movable = true;
+            Weight = 1.0;
+            Movable = true;
         }
 
         public SmallFlask(Serial serial)
@@ -40,8 +42,8 @@ namespace Server.Items
         public MediumFlask()
             : base(0x182A)
         {
-            this.Weight = 1.0;
-            this.Movable = true;
+            Weight = 1.0;
+            Movable = true;
         }
 
         public MediumFlask(Serial serial)
@@ -71,8 +73,8 @@ namespace Server.Items
         public LargeFlask()
             : base(0x183B)
         {
-            this.Weight = 1.0;
-            this.Movable = true;
+            Weight = 1.0;
+            Movable = true;
         }
 
         public LargeFlask(Serial serial)
@@ -102,8 +104,8 @@ namespace Server.Items
         public CurvedFlask()
             : base(0x1832)
         {
-            this.Weight = 1.0;
-            this.Movable = true;
+            Weight = 1.0;
+            Movable = true;
         }
 
         public CurvedFlask(Serial serial)
@@ -133,8 +135,8 @@ namespace Server.Items
         public LongFlask()
             : base(0x1838)
         {
-            this.Weight = 1.0;
-            this.Movable = true;
+            Weight = 1.0;
+            Movable = true;
         }
 
         public LongFlask(Serial serial)
@@ -158,14 +160,28 @@ namespace Server.Items
     }
 
     [Flipable(0x1810, 0x1811)]
-    public class SpinningHourglass : Item
+    public class SpinningHourglass : Item, IFlipable
     {
+        public override int LabelNumber { get { return 1044592; } } // gargoyle hourglass
+
         [Constructable]
         public SpinningHourglass()
             : base(0x1810)
         {
-            this.Weight = 1.0;
-            this.Movable = true;
+            Weight = 1.0;
+            Movable = true;
+        }
+
+        public void OnFlip(Mobile from)
+        {
+            if (ItemID == 0x1810)
+            {
+                ItemID = 0x1811;
+            }
+            else
+            {
+                ItemID = 0x1810;
+            }
         }
 
         public SpinningHourglass(Serial serial)
@@ -194,8 +210,8 @@ namespace Server.Items
         public GreenBottle()
             : base(0x0EFB)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public GreenBottle(Serial serial)
@@ -224,8 +240,8 @@ namespace Server.Items
         public RedBottle()
             : base(0x0EFC)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public RedBottle(Serial serial)
@@ -254,8 +270,8 @@ namespace Server.Items
         public SmallBrownBottle()
             : base(0x0EFD)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public SmallBrownBottle(Serial serial)
@@ -284,8 +300,8 @@ namespace Server.Items
         public SmallGreenBottle()
             : base(0x0F01)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public SmallGreenBottle(Serial serial)
@@ -314,8 +330,8 @@ namespace Server.Items
         public SmallVioletBottle()
             : base(0x0F02)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public SmallVioletBottle(Serial serial)
@@ -344,8 +360,8 @@ namespace Server.Items
         public TinyYellowBottle()
             : base(0x0F03)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public TinyYellowBottle(Serial serial)
@@ -375,8 +391,8 @@ namespace Server.Items
         public SmallBlueFlask()
             : base(0x182A)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public SmallBlueFlask(Serial serial)
@@ -405,8 +421,8 @@ namespace Server.Items
         public SmallYellowFlask()
             : base(0x182B)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public SmallYellowFlask(Serial serial)
@@ -435,8 +451,8 @@ namespace Server.Items
         public SmallRedFlask()
             : base(0x182C)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public SmallRedFlask(Serial serial)
@@ -465,8 +481,8 @@ namespace Server.Items
         public SmallEmptyFlask()
             : base(0x182D)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public SmallEmptyFlask(Serial serial)
@@ -495,8 +511,8 @@ namespace Server.Items
         public YellowBeaker()
             : base(0x182E)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public YellowBeaker(Serial serial)
@@ -525,8 +541,8 @@ namespace Server.Items
         public RedBeaker()
             : base(0x182F)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public RedBeaker(Serial serial)
@@ -555,8 +571,8 @@ namespace Server.Items
         public BlueBeaker()
             : base(0x1830)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public BlueBeaker(Serial serial)
@@ -585,8 +601,8 @@ namespace Server.Items
         public GreenBeaker()
             : base(0x1831)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public GreenBeaker(Serial serial)
@@ -615,8 +631,8 @@ namespace Server.Items
         public EmptyCurvedFlaskW()
             : base(0x1832)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public EmptyCurvedFlaskW(Serial serial)
@@ -645,8 +661,8 @@ namespace Server.Items
         public RedCurvedFlask()
             : base(0x1833)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public RedCurvedFlask(Serial serial)
@@ -675,8 +691,8 @@ namespace Server.Items
         public LtBlueCurvedFlask()
             : base(0x1834)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public LtBlueCurvedFlask(Serial serial)
@@ -705,8 +721,8 @@ namespace Server.Items
         public EmptyCurvedFlaskE()
             : base(0x1835)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public EmptyCurvedFlaskE(Serial serial)
@@ -735,8 +751,8 @@ namespace Server.Items
         public BlueCurvedFlask()
             : base(0x1836)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public BlueCurvedFlask(Serial serial)
@@ -765,8 +781,8 @@ namespace Server.Items
         public GreenCurvedFlask()
             : base(0x1837)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public GreenCurvedFlask(Serial serial)
@@ -795,8 +811,8 @@ namespace Server.Items
         public RedRibbedFlask()
             : base(0x1838)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public RedRibbedFlask(Serial serial)
@@ -825,8 +841,8 @@ namespace Server.Items
         public VioletRibbedFlask()
             : base(0x1839)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public VioletRibbedFlask(Serial serial)
@@ -855,8 +871,8 @@ namespace Server.Items
         public EmptyRibbedFlask()
             : base(0x183A)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public EmptyRibbedFlask(Serial serial)
@@ -885,8 +901,8 @@ namespace Server.Items
         public LargeYellowFlask()
             : base(0x183B)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public LargeYellowFlask(Serial serial)
@@ -915,8 +931,8 @@ namespace Server.Items
         public LargeVioletFlask()
             : base(0x183C)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public LargeVioletFlask(Serial serial)
@@ -945,8 +961,8 @@ namespace Server.Items
         public LargeEmptyFlask()
             : base(0x183D)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public LargeEmptyFlask(Serial serial)
@@ -975,8 +991,8 @@ namespace Server.Items
         public AniRedRibbedFlask()
             : base(0x183E)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public AniRedRibbedFlask(Serial serial)
@@ -1005,8 +1021,8 @@ namespace Server.Items
         public AniLargeVioletFlask()
             : base(0x1841)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public AniLargeVioletFlask(Serial serial)
@@ -1035,8 +1051,8 @@ namespace Server.Items
         public AniSmallBlueFlask()
             : base(0x1844)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public AniSmallBlueFlask(Serial serial)
@@ -1065,8 +1081,8 @@ namespace Server.Items
         public SmallBlueBottle()
             : base(0x1847)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public SmallBlueBottle(Serial serial)
@@ -1095,8 +1111,8 @@ namespace Server.Items
         public SmallGreenBottle2()
             : base(0x1848)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public SmallGreenBottle2(Serial serial)
@@ -1126,8 +1142,8 @@ namespace Server.Items
         public EmptyVialsWRack()
             : base(0x185B)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public EmptyVialsWRack(Serial serial)
@@ -1157,8 +1173,8 @@ namespace Server.Items
         public FullVialsWRack()
             : base(0x185D)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public FullVialsWRack(Serial serial)
@@ -1187,8 +1203,8 @@ namespace Server.Items
         public EmptyVial()
             : base(0x0E24)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public EmptyVial(Serial serial)
@@ -1217,8 +1233,8 @@ namespace Server.Items
         public HourglassAni()
             : base(0x1811)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public HourglassAni(Serial serial)
@@ -1247,8 +1263,8 @@ namespace Server.Items
         public Hourglass()
             : base(0x1810)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public Hourglass(Serial serial)
@@ -1277,8 +1293,8 @@ namespace Server.Items
         public TinyRedBottle()
             : base(0x0F04)
         { 
-            this.Weight = 1.0;
-            this.Movable = true; 
+            Weight = 1.0;
+            Movable = true; 
         }
 
         public TinyRedBottle(Serial serial)
@@ -1297,6 +1313,81 @@ namespace Server.Items
         { 
             base.Deserialize(reader); 
 
+            int version = reader.ReadInt();
+        }
+    }
+
+    public class EmptyVenomVial : Item
+    {
+        public override int LabelNumber { get { return 1112215; } } // empty venom vial
+        [Constructable]
+        public EmptyVenomVial()
+            : base(0x0E24)
+        {
+            Weight = 1.0;
+            Name = "Empty Venom Vial";
+            Hue = 0;
+        }
+        public EmptyVenomVial(Serial serial)
+            : base(serial)
+        {
+        }
+        public override void OnDoubleClick(Mobile from)
+        {
+            if (!IsChildOf(from.Backpack))
+            {
+                from.SendLocalizedMessage(1042001); // That must be in your pack for you to use it.
+            }
+            else
+            {
+                from.Target = new VenomTarget(this);
+                from.SendLocalizedMessage(1112222); // Which creature do you wish to extract resources from?
+            }
+        }
+        public class VenomTarget : Target
+        {
+            private EmptyVenomVial m_EmptyVenomVial;
+            public VenomTarget(Mobile from)
+                : base(2, false, TargetFlags.None)
+            {
+            }
+            public VenomTarget(EmptyVenomVial Vial)
+                : base(2, false, TargetFlags.None)
+            {
+                m_EmptyVenomVial = Vial;
+            }
+            protected override void OnTarget(Mobile from, object target)
+            {
+                if (target is SilverSerpent)
+                {
+                    SilverSerpent serp = target as SilverSerpent;
+                    if (serp.Hue == 1150)
+                    {
+                        if (0.3 > Utility.RandomDouble())
+                        {
+                            from.SendLocalizedMessage(1112219); // You skillfully extract additional resources from the creature.
+                            from.AddToBackpack(new SilverSerpentVenom());
+                            m_EmptyVenomVial.Delete();
+                            serp.Hue = 0;
+                        }
+                        else
+                            from.SendLocalizedMessage(1112218); // You handle the creature but fail to harvest any resources from it.
+                    }
+                    else
+                        from.SendLocalizedMessage(1112223);// This serpent has already been drained of all its venom.
+                }
+                else
+                    from.SendLocalizedMessage(1112221); // You may only use this on a silver serpent.
+            }
+        }
+        public override void Serialize(GenericWriter writer)
+        {
+            base.Serialize(writer);
+            writer.Write((int)0); // version
+        }
+        public override void Deserialize(GenericReader reader)
+        {
+            base.Deserialize(reader);
             int version = reader.ReadInt();
         }
     }

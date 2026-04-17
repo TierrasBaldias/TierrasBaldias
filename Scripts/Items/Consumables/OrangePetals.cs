@@ -4,7 +4,7 @@ using Server.Network;
 
 namespace Server.Items
 {
-    public class OrangePetals : Item
+    public class OrangePetals : Item, ICommodity
     {
         private static readonly Hashtable m_Table = new Hashtable();
         [Constructable]
@@ -17,15 +17,18 @@ namespace Server.Items
         public OrangePetals(int amount)
             : base(0x1021)
         {
-            this.Stackable = true;
-            this.Hue = 0x2B;
-            this.Amount = amount;
+            Stackable = true;
+            Hue = 0x2B;
+            Amount = amount;
         }
 
         public OrangePetals(Serial serial)
             : base(serial)
         {
         }
+
+        TextDefinition ICommodity.Description { get { return LabelNumber; } }
+        bool ICommodity.IsDeedable { get { return true; } }
 
         public override int LabelNumber
         {
@@ -38,7 +41,7 @@ namespace Server.Items
         {
             get
             {
-                return 0.1;
+                return Core.HS ? 1.0 : 0.1;
             }
         }
         public static void RemoveContext(Mobile m)
@@ -59,7 +62,7 @@ namespace Server.Items
             if (item != this)
                 return base.CheckItemUse(from, item);
 
-            if (from != this.RootParent)
+            if (from != RootParent)
             {
                 from.SendLocalizedMessage(1042038); // You must have the object in your backpack to use it.
                 return false;
@@ -74,19 +77,21 @@ namespace Server.Items
 
             if (context != null)
             {
-                from.LocalOverheadMessage(MessageType.Regular, 0x3B2, 1061904);
+                from.LocalOverheadMessage(MessageType.Regular, 0x3B2, 1061904); // * You already feel resilient! You decide to save the petal for later *
                 return;
             }
 
-            from.LocalOverheadMessage(MessageType.Regular, 0x3B2, 1061905);
+            from.LocalOverheadMessage(MessageType.Regular, 0x3B2, 1061905); // * You eat the orange petal.  You feel more resilient! *
             from.PlaySound(0x3B);
 
             Timer timer = new OrangePetalsTimer(from);
             timer.Start();
+            
+            BuffInfo.AddBuff(from, new BuffInfo(BuffIcon.OrangePetals, 1153785, 1153814, TimeSpan.FromMinutes(5.0), from));
 
             AddContext(from, new OrangePetalsContext(timer));
 
-            this.Consume();
+            Consume();
         }
 
         public override void Serialize(GenericWriter writer)
@@ -126,18 +131,17 @@ namespace Server.Items
             public OrangePetalsTimer(Mobile from)
                 : base(TimeSpan.FromMinutes(5.0))
             {
-                this.m_Mobile = from;
+                m_Mobile = from;
             }
 
             protected override void OnTick()
             {
-                if (!this.m_Mobile.Deleted)
+                if (!m_Mobile.Deleted)
                 {
-                    this.m_Mobile.LocalOverheadMessage(MessageType.Regular, 0x3F, true,
-                        "* You feel the effects of your poison resistance wearing off *");
+                    m_Mobile.LocalOverheadMessage(MessageType.Regular, 0x3F, 1053091); // * You feel the effects of your poison resistance wearing off *
                 }
 
-                RemoveContext(this.m_Mobile);
+                RemoveContext(m_Mobile);
             }
         }
 
@@ -146,14 +150,14 @@ namespace Server.Items
             private readonly Timer m_Timer;
             public OrangePetalsContext(Timer timer)
             {
-                this.m_Timer = timer;
+                m_Timer = timer;
             }
 
             public Timer Timer
             {
                 get
                 {
-                    return this.m_Timer;
+                    return m_Timer;
                 }
             }
         }

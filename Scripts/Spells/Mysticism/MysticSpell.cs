@@ -1,11 +1,8 @@
 using System;
 using Server;
-using Server.Items;
-using Server.Mobiles;
-using Server.Spells;
 using Server.Targeting;
 
-namespace Server.Spells.Mystic
+namespace Server.Spells.Mysticism
 {
     public abstract class MysticSpell : Spell
     {
@@ -18,10 +15,11 @@ namespace Server.Spells.Mystic
 
         private static int[] m_ManaTable = new int[] { 4, 6, 9, 11, 14, 20, 40, 50 };
 
-        public override TimeSpan CastDelayBase { get { return TimeSpan.FromSeconds(1.0); } }
+        public override TimeSpan CastDelayBase { get { return TimeSpan.FromMilliseconds(((4 + (int)Circle) * CastDelaySecondsPerTick) * 1000); } }
         public override double CastDelayFastScalar { get { return 1.0; } }
 
-        private const double ChanceOffset = 20.0, ChanceLength = 100.0 / 7.0;
+        public double ChanceOffset { get { return Caster is Server.Mobiles.PlayerMobile ? 20.0 : 30.0; } }
+        private const double ChanceLength = 100.0 / 7.0;
 
         public override void GetCastSkills(out double min, out double max)
         {
@@ -36,13 +34,6 @@ namespace Server.Spells.Mystic
             max = avg + ChanceOffset;
         }
 
-        public override bool CheckFizzle()
-        {
-            double minSkill, maxSkill;
-            GetCastSkills(out minSkill, out maxSkill);
-            return Caster.CheckSkill(CastSkill, minSkill, maxSkill);
-        }
-
         public override SkillName CastSkill { get { return SkillName.Mysticism; } }
 
         public override SkillName DamageSkill
@@ -55,8 +46,17 @@ namespace Server.Spells.Mystic
             }
         }
 
+        public override void SendCastEffect()
+        {
+            if(Caster.Player)
+                Caster.FixedEffect(0x37C4, 87, (int)(GetCastDelay().TotalSeconds * 28), 0x66C, 3);
+        }
+
         public override int GetMana()
         {
+            if (Core.TOL && this is HailStormSpell)
+                return 50;
+
             return m_ManaTable[(int)Circle];
         }
 
@@ -65,7 +65,7 @@ namespace Server.Spells.Mystic
             if (Scroll is SpellStone)
                 return TimeSpan.Zero;
 
-            return TimeSpan.FromSeconds(0.75);
+            return base.GetCastRecovery();
         }
 
         public override TimeSpan GetCastDelay()
@@ -73,7 +73,7 @@ namespace Server.Spells.Mystic
             if (Scroll is SpellStone)
                 return TimeSpan.Zero;
 
-            return TimeSpan.FromSeconds(0.5 + (0.25 * (int)Circle));
+            return base.GetCastDelay();
         }
 
         public override bool CheckCast()
@@ -96,8 +96,10 @@ namespace Server.Spells.Mystic
             if (n >= 1.0)
                 return true;
 
-            int maxSkill = (1 + (int)Circle) * 10;
-            maxSkill += (1 + ((int)Circle / 6)) * 25;
+            int circle = Math.Max(5, 1 + (int)Circle);
+
+            int maxSkill = circle * 10;
+            maxSkill += (circle / 6) * 25;
 
             if (target.Skills[SkillName.MagicResist].Value < maxSkill)
                 target.CheckSkill(SkillName.MagicResist, 0.0, target.Skills[SkillName.MagicResist].Cap);
@@ -107,8 +109,9 @@ namespace Server.Spells.Mystic
 
         public virtual double GetResistPercentForCircle(Mobile target, SpellCircle circle)
         {
-            double firstPercent = target.Skills[SkillName.MagicResist].Value / 5.0;
-            double secondPercent = target.Skills[SkillName.MagicResist].Value - (((Caster.Skills[CastSkill].Value - 20.0) / 5.0) + (1 + (int)circle) * 5.0);
+            double value = GetResistSkill(target);
+            double firstPercent = value / 5.0;
+            double secondPercent = value - (((Caster.Skills[CastSkill].Value - 20.0) / 5.0) + (Math.Max(5, 1 + (int)circle)) * 5.0);
 
             return (firstPercent > secondPercent ? firstPercent : secondPercent) / 2.0; // Seems should be about half of what stratics says.
         }
@@ -118,50 +121,14 @@ namespace Server.Spells.Mystic
             return GetResistPercentForCircle(target, Circle);
         }
 
-        public virtual void OnTarget(Object o)
+        public static double GetBaseSkill(Mobile m)
         {
+            return m.Skills[SkillName.Mysticism].Value;
         }
 
-        // Ever wondered why in the hell RunUO coded a new target class for every spell?
-        public class MysticSpellTarget : Target
+        public static double GetBoostSkill(Mobile m)
         {
-            private MysticSpell m_Owner;
-
-            public MysticSpell Owner
-            {
-                get { return m_Owner; }
-                set { m_Owner = value; }
-            }
-
-            public MysticSpellTarget(MysticSpell owner, TargetFlags flags)
-                : this(owner, false, flags)
-            {
-            }
-
-            public MysticSpellTarget(MysticSpell owner, bool allowland, TargetFlags flags)
-                : base(12, allowland, flags)
-            {
-                m_Owner = owner;
-            }
-
-            protected override void OnTarget(Mobile from, object o)
-            {
-                if (o == null)
-                    return;
-
-                if (!from.CanSee(o))
-                    from.SendLocalizedMessage(500237); // Target can not be seen.
-                else
-                {
-                    SpellHelper.Turn(from, o);
-                    m_Owner.OnTarget(o);
-                }
-            }
-
-            protected override void OnTargetFinish(Mobile from)
-            {
-                m_Owner.FinishSequence();
-            }
+            return Math.Max(m.Skills[SkillName.Imbuing].Value, m.Skills[SkillName.Focus].Value);
         }
     }
 }

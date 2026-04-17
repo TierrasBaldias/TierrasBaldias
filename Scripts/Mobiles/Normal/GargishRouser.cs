@@ -1,6 +1,6 @@
 using System;
 using Server;
-using Server.Spells.Mystic;
+using Server.Spells.Mysticism;
 using Server.Items;
 using Server.Spells;
 
@@ -95,8 +95,8 @@ namespace Server.Mobiles
             this.Fame = 12000;
             this.Karma = -12000;
 
-            m_NextSummon = DateTime.Now;
-            m_NextBard = DateTime.Now;
+            m_NextSummon = DateTime.UtcNow;
+            m_NextBard = DateTime.UtcNow;
 		}
 
         private void AddImmovableItem(Item item)
@@ -114,11 +114,6 @@ namespace Server.Mobiles
         public override bool CanDiscord { get { return true; } }
         public override bool CanPeace { get { return true; } }
         public override bool CanProvoke { get { return true; } }
-
-
-        public override TimeSpan DiscordInterval { get { return TimeSpan.FromSeconds(60); } }
-        public override TimeSpan PeaceInterval { get { return TimeSpan.FromSeconds(60); } }
-        public override TimeSpan ProvokeInterval { get { return TimeSpan.FromSeconds(60); } }
 
 		public override WeaponAbility GetWeaponAbility()
         {
@@ -145,14 +140,15 @@ namespace Server.Mobiles
 		{
 			base.OnThink();
 			
-			if(Combatant == null || m_NextSummon > DateTime.Now)
+			if(Combatant == null || m_NextSummon > DateTime.UtcNow)
 				return;
 				
 			if(this.Mana > 40 && this.Followers + 5 <= this.FollowersMax)
 			{
                 if (!m_Manifested && m_ManifestChance > Utility.RandomDouble())
                 {
-                    Mobile m = this.Combatant;
+                    IDamageable m = this.Combatant;
+
                     if (m is BaseCreature && (((BaseCreature)m).Summoned || ((BaseCreature)m).Controlled))
                         m = ((BaseCreature)m).GetMaster();
 
@@ -165,13 +161,13 @@ namespace Server.Mobiles
                         vm.Combatant = m;
 
                     m_Manifested = true;
-                    m_NextSummon = DateTime.Now + TimeSpan.FromMinutes(10);
+                    m_NextSummon = DateTime.UtcNow + TimeSpan.FromMinutes(10);
                 }
                 else
                 {
                     Spell spell = new RisingColossusSpell(this, null);
                     spell.Cast();
-                    m_NextSummon = DateTime.Now + TimeSpan.FromSeconds(30);
+                    m_NextSummon = DateTime.UtcNow + TimeSpan.FromSeconds(30);
                 }
 			}
 		}
@@ -217,8 +213,8 @@ namespace Server.Mobiles
             m_Type = reader.ReadInt();
             m_Manifested = reader.ReadBool();
 
-            m_NextSummon = DateTime.Now;
-            m_NextBard = DateTime.Now;
+            m_NextSummon = DateTime.UtcNow;
+            m_NextBard = DateTime.UtcNow;
         }
 	}
 }

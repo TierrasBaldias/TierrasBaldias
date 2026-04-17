@@ -3,17 +3,16 @@ using Server.Items;
 
 namespace Server.Mobiles
 {
-    [CorpseName("an goblin corpse")]
+    [CorpseName("a goblin corpse")]
     public class GreenGoblin : BaseCreature
     {
-        //public override InhumanSpeech SpeechType{ get{ return InhumanSpeech.Orc; } }
         [Constructable]
         public GreenGoblin()
             : base(AIType.AI_Melee, FightMode.Closest, 10, 1, 0.2, 0.4)
         {
-            Name = "Green Goblin";
+            Name = "a green goblin";
             Body = 723;
-            BaseSoundID = 0x45A;
+            BaseSoundID = 0x600;
 
             SetStr(252, 343);
             SetDex(60, 74);
@@ -42,8 +41,6 @@ namespace Server.Mobiles
             Karma = -1500;
 
             VirtualArmor = 28;
-
-            QLPoints = 8;
 
             switch ( Utility.Random(20) )
             {
@@ -86,63 +83,33 @@ namespace Server.Mobiles
                 PackItem(new BolaBall());
         }
 
-        //Item item = aggressor.FindItemOnLayer( Layer.Helm );
-
-        //if ( item is OrcishKinMask )
-        //{
-        //	AOS.Damage( aggressor, 50, 0, 100, 0, 0, 0 );
-        //	item.Delete();
-        //	aggressor.FixedParticles( 0x36BD, 20, 10, 5044, EffectLayer.Head );
-        //	aggressor.PlaySound( 0x307 );
-        //}
-        //}
         public GreenGoblin(Serial serial)
             : base(serial)
         {
         }
 
-        public override bool CanRummageCorpses
-        {
-            get
-            {
-                return true;
-            }
-        }
-        public override int TreasureMapLevel
-        {
-            get
-            {
-                return 1;
-            }
-        }
-        public override int Meat
-        {
-            get
-            {
-                return 1;
-            }
-        }
-        public override OppositionGroup OppositionGroup
-        {
-            get
-            {
-                return OppositionGroup.SavagesAndOrcs;
-            }
-        }
-        //public override bool IsEnemy( Mobile m )
-        //{
-        //	if ( m.Player && m.FindItemOnLayer( Layer.Helm ) is OrcishKinMask )
-        //		return false;
+        public override int GetAngerSound() { return 0x600; }
+        public override int GetIdleSound() { return 0x600; }
+        public override int GetAttackSound() { return 0x5FD; }
+        public override int GetHurtSound() { return 0x5FF; }
+        public override int GetDeathSound() { return 0x5FE; }
 
-        //	return base.IsEnemy( m );
-        //}
+        public override bool CanRummageCorpses { get { return true; } }
+        public override int TreasureMapLevel { get { return 1; } }
+        public override int Meat { get { return 1; } }
+        public override TribeType Tribe { get { return TribeType.GreenGoblin; } }
 
-        //public override void AggressiveAction( Mobile aggressor, bool criminal )
-        //{
-        //base.AggressiveAction( aggressor, criminal );
         public override void GenerateLoot()
         {
             AddLoot(LootPack.Meager);
+        }
+
+        public override void OnDeath(Container c)
+        {
+            base.OnDeath(c);
+
+            if (Utility.RandomDouble() < 0.01)
+                c.DropItem(new LuckyCoin());
         }
 
         public override void Serialize(GenericWriter writer)

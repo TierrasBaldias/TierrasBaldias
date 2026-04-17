@@ -1,10 +1,13 @@
-﻿using System;
-using Server;
+using System;
+using System.Linq;
 using System.Collections.Generic;
+
+using Server;
 using Server.Mobiles;
 using Server.Spells;
 using Server.Spells.Ninjitsu;
 using Server.Network;
+using Server.Spells.SkillMasteries;
 
 namespace Server.Items
 {
@@ -14,7 +17,11 @@ namespace Server.Items
         SoulCharge,
         DamageEater,
         Splintering,
-        Searing
+        Searing,
+        Bane,
+        BoneBreaker, 
+        Swarm,
+        Sparks,
     }
 
     /// <summary>
@@ -23,6 +30,7 @@ namespace Server.Items
     public class PropertyEffect
     {
         private Mobile m_Mobile;
+        private Mobile m_Victim;
         private Item m_Owner;
         private EffectsType m_Effect;
         private TimeSpan m_Duration;
@@ -30,6 +38,7 @@ namespace Server.Items
         private Timer m_Timer;
 
         public Mobile Mobile { get { return m_Mobile; } }
+        public Mobile Victim { get { return m_Victim; } }
         public Item Owner { get { return m_Owner; } }
         public EffectsType Effect { get { return m_Effect; } }
         public TimeSpan Duration { get { return m_Duration; } }
@@ -39,9 +48,10 @@ namespace Server.Items
         private static List<PropertyEffect> m_Effects = new List<PropertyEffect>();
         public static List<PropertyEffect> Effects { get { return m_Effects; } }
 
-        public PropertyEffect(Mobile from, Item owner, EffectsType effect, TimeSpan duration, TimeSpan tickduration)
+        public PropertyEffect(Mobile from, Mobile victim, Item owner, EffectsType effect, TimeSpan duration, TimeSpan tickduration)
         {
             m_Mobile = from;
+            m_Victim = victim;
             m_Owner = owner;
             m_Effect = effect;
             m_Duration = duration;
@@ -53,7 +63,7 @@ namespace Server.Items
                 StartTimer();
         }
 
-        public void RemoveEffects()
+        public virtual void RemoveEffects()
         {
             StopTimer();
 
@@ -95,10 +105,6 @@ namespace Server.Items
         {
         }
 
-        public virtual void ModifyDamage(Mobile defender, ref int damIncrease)
-        {
-        }
-
         public virtual void OnDamage(int damage, int phys, int fire, int cold, int poison, int energy, int direct)
         {
         }
@@ -114,18 +120,29 @@ namespace Server.Items
                 m_Effect = effect;
 
                 if (effect != null && effect.Duration > TimeSpan.MinValue)
-                    m_Expires = DateTime.Now + effect.Duration;
+                    m_Expires = DateTime.UtcNow + effect.Duration;
                 else
                     m_Expires = DateTime.MinValue;
             }
 
             protected override void OnTick()
             {
-                m_Effect.OnTick();
-
-                if (m_Expires > DateTime.MinValue && m_Expires <= DateTime.Now)
+                if (m_Effect.Mobile == null || (m_Effect.Mobile.Deleted || !m_Effect.Mobile.Alive || m_Effect.Mobile.IsDeadBondedPet))
                 {
                     m_Effect.RemoveEffects();
+                }
+                else if (m_Effect.Victim != null && (m_Effect.Victim.Deleted || !m_Effect.Victim.Alive || m_Effect.Mobile.IsDeadBondedPet))
+                {
+                    m_Effect.RemoveEffects();
+                }
+                else
+                {
+                    m_Effect.OnTick();
+
+                    if (m_Expires > DateTime.MinValue && m_Expires <= DateTime.UtcNow)
+                    {
+                        m_Effect.RemoveEffects();
+                    }
                 }
             }
         }
@@ -140,137 +157,31 @@ namespace Server.Items
             return false;
         }
 
-        public static void RemoveContext(Mobile from, EffectsType type)
+        public static T GetContext<T>(Mobile from, EffectsType type) where T : PropertyEffect
         {
-            PropertyEffect effect = GetContext(from, type);
-
-            if (effect != null)
-                effect.RemoveEffects();
+            return m_Effects.FirstOrDefault(e => e.Mobile == from && e.Effect == type) as T;
         }
 
-        public static PropertyEffect GetContext(Mobile from, EffectsType type)
+        public static T GetContext<T>(Mobile from, Mobile victim, EffectsType type) where T : PropertyEffect
         {
-            foreach (PropertyEffect e in m_Effects)
-            {
-                if (e.Mobile == from && e.Effect == type)
-                    return e;
-            }
+            return m_Effects.FirstOrDefault(e => e.Mobile == from && e.Victim == victim && e.Effect == type) as T;
+        }
 
-            return null;
+        public static IEnumerable<T> GetContexts<T>(Mobile victim, EffectsType type) where T : PropertyEffect
+        {
+            foreach (PropertyEffect effect in m_Effects.OfType<T>().Where(e => e.Victim == victim))
+            {
+                yield return effect as T;
+            }
         }
     }
-
-    /*public class BattleLustContext : PropertyEffect
-    {
-        private int m_DamageMod;
-        private int m_Tick;
-        private int m_DamageDone;
-        private int m_Aggressors;
-
-        public int DamageMod { get { return m_DamageMod; } }
-
-        public BattleLustContext(Mobile from, Item item)
-            : base(from, item, EffectsType.BattleLust, TimeSpan.MinValue, TimeSpan.FromSeconds(2))
-        {
-            m_DamageMod = 0;
-            m_Tick = 0;
-            m_Aggressors = 0;
-        }
-
-        public override void OnTick()
-        {
-            if (SAWeaponAttributes.GetValue(this.Mobile, SAWeaponAttribute.BattleLust) == 0)
-            {
-                RemoveEffects();
-                return;
-            }
-
-            m_Tick++;
-
-            if (m_Aggressors < this.Mobile.Aggressed.Count + this.Mobile.Aggressors.Count)
-            {
-                m_Aggressors = this.Mobile.Aggressed.Count + this.Mobile.Aggressors.Count;
-                m_DamageMod += m_Aggressors * 15;
-            }
-
-            m_DamageMod += Math.Max(0, m_DamageDone / 25);
-
-            if (m_Tick % 6 == 0)
-                m_DamageMod -= m_Tick / 6;
-
-            if (m_DamageMod <= 0 || m_Tick > 60)
-                RemoveEffects();
-
-            m_DamageDone = 0;
-        }
-
-        public override void OnDamaged(int damage)
-        {
-            m_DamageDone += damage;
-
-            if(this.Mobile != null)
-                this.Mobile.SendLocalizedMessage(1113748); // The damage you received fuels your battle fury.
-        }
-
-        public override void ModifyDamage(Mobile defender, ref int damIncrease)
-        {
-            if (defender is PlayerMobile)
-                damIncrease += (int)Math.Min(45, m_DamageMod);
-            else
-                damIncrease += (int)Math.Min(90, m_DamageMod);
-
-            //TODO: Message?
-        }
-
-        /// <summary>
-        /// Called when a person is hit damage. It then checks for a Battle Lust Context for the one recieving damage.
-        /// </summary>
-        /// <param name="defender"></param>
-        /// <param name="damage"></param>
-        public static void CheckHit(Mobile defender, int damage)
-        {
-            BaseWeapon weapon = defender.Weapon as BaseWeapon;
-
-            if (damage < 30 || weapon == null || weapon.WeaponAttributesSA.BattleLust <= 0)
-                return;
-
-            BattleLustContext defenderBL = (BattleLustContext)PropertyEffect.GetContext(defender, EffectsType.BattleLust);
-
-            if (defenderBL == null)
-                defenderBL = new BattleLustContext(defender, weapon);
-
-            if (defenderBL != null)
-                defenderBL.OnDamaged(damage);
-        }
-
-        /// <summary>
-        /// This is called when a person hits another mobile with a weapon. 
-        /// </summary>
-        /// <param name="attacker"></param>
-        /// <param name="defender"></param>
-        /// <param name="percentBonus"></param>
-        /// <param name="weapon"></param>
-        public static void CheckModifyDamage(Mobile attacker, Mobile defender, ref int percentBonus, BaseWeapon weapon)
-        {
-            if (SAWeaponAttributes.GetValue(attacker, SAWeaponAttribute.BattleLust) <= 0)
-                return;
-
-            BattleLustContext attackerBL = (BattleLustContext)PropertyEffect.GetContext(attacker, EffectsType.BattleLust);
-
-            if (attackerBL == null)
-                attackerBL = new BattleLustContext(attacker, weapon);
-
-            if(attackerBL != null)
-                attackerBL.ModifyDamage(defender, ref percentBonus);
-        }
-    }*/
 
     public class SoulChargeContext : PropertyEffect
     {
         private bool m_Active;
 
         public SoulChargeContext(Mobile from, Item item)
-            : base(from, item, EffectsType.SoulCharge, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15))
+            : base(from, null, item, EffectsType.SoulCharge, TimeSpan.FromSeconds(40), TimeSpan.FromSeconds(40))
         {
             m_Active = true;
         }
@@ -279,10 +190,12 @@ namespace Server.Items
         {
             if (m_Active && IsEquipped() && this.Mobile != null)
             {
-                //double mod = BaseFishPie.IsUnderEffects(this.Mobile, FishPieEffect.SoulCharge) ? .50 : .30;
-                double mod = .30;
+                double mod = BaseFishPie.IsUnderEffects(this.Mobile, FishPieEffect.SoulCharge) ? .50 : .30;
                 this.Mobile.Mana += (int)Math.Min(this.Mobile.ManaMax, damage * mod);
                 m_Active = false;
+
+                Server.Effects.SendTargetParticles(this.Mobile, 0x375A, 0x1, 0xA, 0x71, 0x2, 0x1AE9, (EffectLayer)0, 0);
+
                 this.Mobile.SendLocalizedMessage(1113636); //The soul charge effect converts some of the damage you received into mana.
             }
         }
@@ -290,9 +203,10 @@ namespace Server.Items
         public static void CheckHit(Mobile attacker, Mobile defender, int damage)
         {
             BaseShield shield = defender.FindItemOnLayer(Layer.TwoHanded) as BaseShield;
+
             if (shield != null && shield.ArmorAttributes.SoulCharge > 0 && shield.ArmorAttributes.SoulCharge > Utility.Random(100))
             {
-                SoulChargeContext sc = (SoulChargeContext)PropertyEffect.GetContext(defender, EffectsType.SoulCharge);
+                SoulChargeContext sc = PropertyEffect.GetContext<SoulChargeContext>(defender, EffectsType.SoulCharge);
 
                 if (sc == null)
                     sc = new SoulChargeContext(defender, shield);
@@ -317,7 +231,7 @@ namespace Server.Items
         private int m_Charges;
 
         public DamageEaterContext(Mobile mobile)
-            : base(mobile, null, EffectsType.DamageEater, TimeSpan.MinValue, TimeSpan.FromSeconds(10))
+            : base(mobile, null, null, EffectsType.DamageEater, TimeSpan.MinValue, TimeSpan.FromSeconds(10))
         {
             m_Charges = 0;
         }
@@ -419,9 +333,9 @@ namespace Server.Items
             if (dam < 0)
                 return;
 
-            this.Mobile.Heal((int)dam);
-            this.Mobile.FixedParticles(0x376A, 9, 32, 5005, EffectLayer.Waist);
-            this.Mobile.PlaySound(0x1F2);
+            Mobile.Heal((int)dam, Mobile, false);
+            Mobile.SendLocalizedMessage(1113617); // Some of the damage you received has been converted to heal you.
+            Server.Effects.SendPacket(Mobile.Location, Mobile.Map, new ParticleEffect(EffectType.FixedFrom, Mobile.Serial, Serial.Zero, 0x375A, Mobile.Location, Mobile.Location, 1, 10, false, false, 33, 0, 2, 6889, 1, Mobile.Serial, 45, 0));
             m_Charges--;
         }
 
@@ -467,7 +381,7 @@ namespace Server.Items
 
         public static void CheckDamage(Mobile from, int damage, int phys, int fire, int cold, int pois, int ergy, int direct)
         {
-            DamageEaterContext context = (DamageEaterContext)PropertyEffect.GetContext(from, EffectsType.DamageEater);
+            DamageEaterContext context = PropertyEffect.GetContext<DamageEaterContext>(from, EffectsType.DamageEater);
 
             if (context == null && HasValue(from))
                 context = new DamageEaterContext(from);
@@ -479,114 +393,66 @@ namespace Server.Items
 
     public class SplinteringWeaponContext : PropertyEffect
     {
-        private Mobile m_Bleeder;
-        private int m_Level;
-        private bool m_Bleeding;
-
-        public Mobile Bleeder { get { return m_Bleeder; } }
-        public bool Bleeding { get { return m_Bleeding; } }
+        public static List<Mobile> BleedImmune { get; set; } = new List<Mobile>();
 
         public SplinteringWeaponContext(Mobile from, Mobile defender, Item weapon)
-            : base(from, weapon, EffectsType.Splintering, TimeSpan.MinValue, TimeSpan.FromSeconds(2))
+            : base(from, defender, weapon, EffectsType.Splintering, TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(4))
         {
-            m_Bleeding = true;
-            m_Bleeder = defender;
-            m_Level = 0;
+            StartForceWalk(defender);
 
-            StartForceWalk(m_Bleeder);
+            if (Core.EJ)
+            {
+                if (!(defender is PlayerMobile) || !IsBleedImmune(defender))
+                {
+                    BleedAttack.BeginBleed(defender, from, true);
+                    AddBleedImmunity(defender);
+                }
+            }
+            else
+            {
+                BleedAttack.BeginBleed(defender, from, true);
+            }
 
-            BuffInfo.AddBuff(from, new BuffInfo(BuffIcon.SplinteringEffect, 1154670, 1152396));
+            defender.SendLocalizedMessage(1112486); // A shard of the brittle weapon has become lodged in you!
+            from.SendLocalizedMessage(1113077); // A shard of your blade breaks off and sticks in your opponent!
+
+            Server.Effects.PlaySound(defender.Location, defender.Map, 0x1DF);
+
+            BuffInfo.AddBuff(defender, new BuffInfo(BuffIcon.SplinteringEffect, 1154670, 1152144, TimeSpan.FromSeconds(10), defender));
         }
 
         public override void OnTick()
         {
-            m_Level++;
+            base.OnTick();
 
-            if (m_Bleeding)
-                DoBleed(m_Bleeder, this.Mobile, 6 - m_Level);
-
-            if (m_Level > 4)
-            {
-                EndBleed(m_Bleeder, true);
-                EndForceWalk(m_Bleeder);
-                RemoveEffects();
-                BuffInfo.RemoveBuff(this.Mobile, BuffIcon.SplinteringEffect);
-                return;
-            }
+            BuffInfo.RemoveBuff(Victim, BuffIcon.SplinteringEffect);
         }
 
         public void StartForceWalk(Mobile m)
         {
-            if (m.NetState != null && !TransformationSpellHelper.UnderTransformation(m, typeof(AnimalForm))
-                && m.AccessLevel < AccessLevel.GameMaster)
-                m.Send(SpeedControl.WalkSpeed);
+            if (m.NetState != null && m.AccessLevel < AccessLevel.GameMaster)
+                m.SendSpeedControl(SpeedControlType.WalkSpeed);
         }
 
         public void EndForceWalk(Mobile m)
         {
-            if ( m.NetState != null && !TransformationSpellHelper.UnderTransformation( m, typeof( AnimalForm ) )
-				&& !TransformationSpellHelper.UnderTransformation( m, typeof( Server.Spells.Spellweaving.ReaperFormSpell ) ) )
-				m.Send( SpeedControl.Disable );
+            m.SendSpeedControl(SpeedControlType.Disable);
         }
 
-        public void DoBleed(Mobile m, Mobile from, int level)
+        public override void RemoveEffects()
         {
-            if (m.Alive)
-            {
-                int damage = Utility.RandomMinMax(level, level * 2);
+            EndForceWalk(Victim);
+            Victim.SendLocalizedMessage(1112487); // The shard is successfully removed.
 
-                if (!m.Player)
-                    damage *= 2;
-
-                m.PlaySound(0x133);
-                AOS.Damage(m, from, damage, false, 0, 0, 0, 0, 0, 0, 100, false, false, false);
-
-                Blood blood = new Blood();
-
-                blood.ItemID = Utility.Random(0x122A, 5);
-
-                blood.MoveToWorld(m.Location, m.Map);
-            }
-            else
-            {
-                EndBleed(m, false);
-                RemoveEffects();
-
-                BuffInfo.RemoveBuff(m, BuffIcon.SplinteringEffect);
-            }
+            base.RemoveEffects();
         }
 
-        public void EndBleed(Mobile m, bool message)
+        public static bool CheckHit(Mobile attacker, Mobile defender, WeaponAbility ability, Item weapon)
         {
-            if (message)
-                m.SendLocalizedMessage(1060167); // The bleeding wounds have healed, you are no longer bleeding!
+            if (defender == null || (Core.EJ && (ability == WeaponAbility.Disarm || ability == WeaponAbility.InfectiousStrike || SkillMasterySpell.HasSpell(attacker, typeof(SkillMasterySpell)))))
+                return false;
 
-            m_Bleeding = false;
-        }
-
-        public static void EndBleeding(Mobile m)
-        {
-            foreach (PropertyEffect effect in PropertyEffect.Effects)
-            {
-                if (effect is SplinteringWeaponContext && ((SplinteringWeaponContext)effect).Bleeder == m && ((SplinteringWeaponContext)effect).Bleeding)
-                    ((SplinteringWeaponContext)effect).EndBleed(m, true);
-            }
-        }
-
-        public static bool IsBleeding(Mobile m)
-        {
-            foreach (PropertyEffect effect in PropertyEffect.Effects)
-            {
-                if (effect is SplinteringWeaponContext && ((SplinteringWeaponContext)effect).Bleeder == m && ((SplinteringWeaponContext)effect).Bleeding)
-                    return true;
-            }
-
-            return false;
-        }
-
-        public static bool CheckHit(Mobile attacker, Mobile defender, Item weapon)
-        {
-            SplinteringWeaponContext context = (SplinteringWeaponContext)PropertyEffect.GetContext(attacker, EffectsType.Splintering);
+            SplinteringWeaponContext context = PropertyEffect.GetContext<SplinteringWeaponContext>(attacker, defender, EffectsType.Splintering);
 
             if (context == null)
             {
@@ -596,29 +462,307 @@ namespace Server.Items
 
             return false;
         }
+
+        public static bool IsBleedImmune(Mobile m)
+        {
+            return BleedImmune.Contains(m);
+        }
+
+        public static void AddBleedImmunity(Mobile m)
+        {
+            if (!(m is PlayerMobile) || BleedImmune.Contains(m))
+                return;
+
+            BleedImmune.Add(m);
+            Timer.DelayCall(TimeSpan.FromSeconds(16), () => BleedImmune.Remove(m));
+        }
     }
 
     public class SearingWeaponContext : PropertyEffect
     {
         public static int Damage { get { return Utility.RandomMinMax(10, 15); } }
 
-        public SearingWeaponContext(Mobile from)
-            : base(from, null, EffectsType.Searing, TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(4))
+        public SearingWeaponContext(Mobile from, Mobile defender)
+            : base(from, defender, null, EffectsType.Searing, TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(4))
         {
             from.SendLocalizedMessage(1151177); //The searing attack cauterizes the wound on impact.
         }
 
-        public static void CheckHit(Mobile defender)
+        public static void CheckHit(Mobile attacker, Mobile defender)
         {
-            SearingWeaponContext context = (SearingWeaponContext)PropertyEffect.GetContext(defender, EffectsType.Searing);
+            SearingWeaponContext context = PropertyEffect.GetContext<SearingWeaponContext>(attacker, defender, EffectsType.Searing);
 
             if (context == null)
-                new SearingWeaponContext(defender);
+                new SearingWeaponContext(attacker, defender);
         }
 
         public static bool HasContext(Mobile defender)
         {
-            return PropertyEffect.GetContext(defender, EffectsType.Searing) != null;
+            return PropertyEffect.GetContext<SearingWeaponContext>(defender, EffectsType.Searing) != null;
+        }
+    }
+
+    public class BoneBreakerContext : PropertyEffect
+    {
+        public static Dictionary<Mobile, DateTime> _Immunity;
+
+        public BoneBreakerContext(Mobile attacker, Mobile defender, Item weapon)
+            : base(attacker, defender, weapon, EffectsType.BoneBreaker, TimeSpan.FromSeconds(4), TimeSpan.FromSeconds(1))
+        {
+        }
+
+        public override void OnTick()
+        {
+            int toReduce = Victim.StamMax / 10;
+
+            if (Victim.Stam - toReduce >= 3)
+                Victim.Stam -= toReduce;
+            else
+                Victim.Stam = Math.Max(1, Victim.Stam - 1);
+        }
+
+        public override void RemoveEffects()
+        {
+            base.RemoveEffects();
+
+            AddImmunity(Victim);
+        }
+
+        public static int CheckHit(Mobile attacker, Mobile defender)
+        {
+            int mana = (int)(30.0 * ((double)(AosAttributes.GetValue(attacker, AosAttribute.LowerManaCost) + BaseArmor.GetInherentLowerManaCost(attacker)) / 100.0));
+            int damage = 0;
+
+            if (attacker.Mana >= mana)
+            {
+                attacker.Mana -= mana;
+                damage += 50;
+
+                defender.SendLocalizedMessage(1157317); // The attack shatters your bones!
+            }
+
+            if (IsImmune(defender))
+            {
+                attacker.SendLocalizedMessage(1157316); // Your target is currently immune to bone breaking!
+                return damage;
+            }
+
+            if (20 > Utility.Random(100))
+            {
+                BoneBreakerContext context = PropertyEffect.GetContext<BoneBreakerContext>(attacker, defender, EffectsType.BoneBreaker);
+
+                if (context == null)
+                {
+                    new BoneBreakerContext(attacker, defender, null);
+                    defender.SendLocalizedMessage(1157363); // Your bones are broken! Stamina drain over time!
+
+                    defender.PlaySound(0x204);
+                    defender.FixedEffect(0x376A, 9, 32);
+
+                    defender.FixedEffect(0x3779, 10, 20, 1365, 0);
+                }
+            }
+
+            return damage;
+        }
+
+        public static bool IsImmune(Mobile m)
+        {
+            if (_Immunity == null)
+                return false;
+
+            List<Mobile> list = new List<Mobile>(_Immunity.Keys);
+
+            foreach (Mobile mob in list)
+            {
+                if (_Immunity[mob] < DateTime.UtcNow)
+                    _Immunity.Remove(mob);
+            }
+
+            ColUtility.Free(list);
+
+            return _Immunity.ContainsKey(m);
+        }
+
+        public static void AddImmunity(Mobile m)
+        {
+            if (_Immunity == null)
+                _Immunity = new Dictionary<Mobile, DateTime>();
+
+            _Immunity[m] = DateTime.UtcNow + TimeSpan.FromSeconds(60);
+        }
+    }
+
+    public class SwarmContext : PropertyEffect
+    {
+        public static Dictionary<Mobile, DateTime> _Immunity;
+
+        private int _ID;
+
+        public SwarmContext(Mobile attacker, Mobile defender, Item weapon)
+            : base(attacker, defender, weapon, EffectsType.Swarm, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(5))
+        {
+            _ID = Utility.RandomMinMax(2331, 2339);
+
+            DoEffects();
+        }
+
+        public static void CheckHit(Mobile attacker, Mobile defender)
+        {
+            if (IsImmune(defender))
+            {
+                attacker.SendLocalizedMessage(1157322); // Your target is currently immune to swarm!
+                return;
+            }
+
+            SwarmContext context = PropertyEffect.GetContext<SwarmContext>(attacker, defender, EffectsType.Swarm);
+
+            if (context != null)
+            {
+                context.RemoveEffects();
+            }
+
+            context = new SwarmContext(attacker, defender, null);
+
+            defender.NonlocalOverheadMessage(MessageType.Regular, 0x5C, 1114447, defender.Name); // * ~1_NAME~ is stung by a swarm of insects *
+            defender.LocalOverheadMessage(MessageType.Regular, 0x5C, 1071905); // * The swarm of insects bites and stings your flesh! *
+        }
+
+        public override void OnTick()
+        {
+            if (Victim == null || !Victim.Alive)
+            {
+                RemoveEffects();
+                return;
+            }
+
+            if (Victim.FindItemOnLayer(Layer.OneHanded) is Torch)
+            {
+                if (Victim.NetState != null)
+                    Victim.LocalOverheadMessage(MessageType.Regular, 0x61, 1071925); // * The open flame begins to scatter the swarm of insects! *
+            }
+            else
+            {
+                DoEffects();
+            }
+        }
+
+        private void DoEffects()
+        {
+            AOS.Damage(Victim, Mobile, 10, 0, 0, 0, 0, 0, 0, 100);
+            Victim.SendLocalizedMessage(1157362); // Biting insects are attacking you!
+            Server.Effects.SendTargetEffect(Victim, _ID, 40);
+
+            Victim.PlaySound(0x00E);
+            Victim.PlaySound(0x1BC);
+        }
+
+        public override void RemoveEffects()
+        {
+            base.RemoveEffects();
+
+            //AddImmunity(Victim);
+        }
+
+        public static void CheckRemove(Mobile victim)
+        {
+            ColUtility.ForEach(PropertyEffect.GetContexts<SwarmContext>(victim, EffectsType.Swarm), context =>
+            {
+                context.RemoveEffects();
+            });
+        }
+
+        public static bool IsImmune(Mobile m)
+        {
+            if (_Immunity == null)
+                return false;
+
+            List<Mobile> list = new List<Mobile>(_Immunity.Keys);
+
+            foreach (Mobile mob in list)
+            {
+                if (_Immunity[mob] < DateTime.UtcNow)
+                    _Immunity.Remove(mob);
+            }
+
+            ColUtility.Free(list);
+
+            return _Immunity.ContainsKey(m);
+        }
+
+        public static void AddImmunity(Mobile m)
+        {
+            if (_Immunity == null)
+                _Immunity = new Dictionary<Mobile, DateTime>();
+
+            _Immunity[m] = DateTime.UtcNow + TimeSpan.FromSeconds(60);
+        }
+    }
+
+    public class SparksContext : PropertyEffect
+    {
+        public static Dictionary<Mobile, DateTime> _Immunity;
+
+        public SparksContext(Mobile attacker, Mobile defender, Item weapon)
+            : base(attacker, defender, weapon, EffectsType.Sparks, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(1))
+        {
+        }
+
+        public static void CheckHit(Mobile attacker, Mobile defender)
+        {
+            if (IsImmune(defender))
+            {
+                attacker.SendLocalizedMessage(1157324); // Your target is currently immune to sparks!
+                return;
+            }
+
+            SparksContext context = PropertyEffect.GetContext<SparksContext>(attacker, defender, EffectsType.Sparks);
+
+            if (context == null)
+            {
+                context = new SparksContext(attacker, defender, null);
+
+                attacker.PlaySound(0x20A);
+                defender.FixedParticles(0x3818, 1, 11, 0x13A8, 0, 0, EffectLayer.Waist);
+            }
+        }
+
+        public override void OnTick()
+        {
+            AOS.Damage(Victim, Mobile, Utility.RandomMinMax(20, 40), 0, 0, 0, 0, 100);
+        }
+
+        public override void RemoveEffects()
+        {
+            base.RemoveEffects();
+
+            //AddImmunity(Victim);
+        }
+
+        public static bool IsImmune(Mobile m)
+        {
+            if (_Immunity == null)
+                return false;
+
+            List<Mobile> list = new List<Mobile>(_Immunity.Keys);
+
+            foreach (Mobile mob in list)
+            {
+                if (_Immunity[mob] < DateTime.UtcNow)
+                    _Immunity.Remove(mob);
+            }
+
+            ColUtility.Free(list);
+
+            return _Immunity.ContainsKey(m);
+        }
+
+        public static void AddImmunity(Mobile m)
+        {
+            if (_Immunity == null)
+                _Immunity = new Dictionary<Mobile, DateTime>();
+
+            _Immunity[m] = DateTime.UtcNow + TimeSpan.FromSeconds(60);
         }
     }
 }

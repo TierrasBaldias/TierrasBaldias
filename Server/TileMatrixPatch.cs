@@ -1,9 +1,3 @@
-#region Header
-// **********
-// ServUO - TileMatrixPatch.cs
-// **********
-#endregion
-
 #region References
 using System.IO;
 using System.Runtime.CompilerServices;
@@ -86,11 +80,7 @@ namespace Server
 
 						fixed (LandTile* pTiles = tiles)
 						{
-#if !MONO
 							NativeReader.Read(fsData.SafeFileHandle.DangerousGetHandle(), pTiles, 192);
-#else
-							NativeReader.Read( fsData.Handle, pTiles, 192 );
-#endif
 						}
 
 						matrix.SetLandBlock(x, y, tiles);
@@ -160,11 +150,8 @@ namespace Server
 
 							fixed (StaticTile* pTiles = staTiles)
 							{
-#if !MONO
 								NativeReader.Read(fsData.SafeFileHandle.DangerousGetHandle(), pTiles, length);
-#else
-								NativeReader.Read( fsData.Handle, pTiles, length );
-#endif
+								
 								StaticTile* pCur = pTiles, pEnd = pTiles + tileCount;
 
 								while (pCur < pEnd)
