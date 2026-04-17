@@ -1,9 +1,12 @@
 using System;
+using Server.Engines.Craft;
 
 namespace Server.Items
 {
-    public class OrcHelm : BaseArmor
+    public class OrcHelm : BaseArmor, IRepairable
     {
+        public CraftSystem RepairSystem { get { return DefTailoring.CraftSystem; } }
+
         [Constructable]
         public OrcHelm()
             : base(0x1F0B)
@@ -96,7 +99,7 @@ namespace Server.Items
         {
             get
             {
-                return ArmorMaterialType.Leather;
+                return ArmorMaterialType.Bone;
             }
         }
         public override CraftResource DefaultResource
@@ -122,12 +125,7 @@ namespace Server.Items
         public override void Deserialize(GenericReader reader)
         {
             base.Deserialize(reader);
-            int version = reader.ReadInt();
-
-            if (version == 0 && (this.Weight == 1 || this.Weight == 5))
-            {
-                this.Weight = -1;
-            }
+            int version = reader.ReadInt();            
         }
     }
 }

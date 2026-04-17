@@ -5,14 +5,18 @@ namespace Server.Items
     public class MysticsGuard : GargishWoodenShield
 	{
 		public override bool IsArtifact { get { return true; } }
+		public override int LabelNumber {get { return 1113536; } }
+		public override int ArtifactRarity{ get { return 5; } }
+
         [Constructable]
         public MysticsGuard()
             : base()
         {
-            this.ArmorAttributes.SoulCharge = 30;
-            this.Attributes.SpellChanneling = 1;
-            this.Attributes.DefendChance = 10;
-            this.Attributes.CastRecovery = 2;
+            ArmorAttributes.SoulCharge = 30;
+            Attributes.SpellChanneling = 1;
+            Attributes.DefendChance = 10;
+            Attributes.CastRecovery = 2;
+	        Hue = 0x671;
         }
 
         public MysticsGuard(Serial serial)
@@ -67,20 +71,6 @@ namespace Server.Items
             get
             {
                 return 255;
-            }
-        }
-        public override bool CanBeWornByGargoyles
-        {
-            get
-            {
-                return true;
-            }
-        }
-        public override Race RequiredRace
-        {
-            get
-            {
-                return Race.Gargoyle;
             }
         }
         public override void Deserialize(GenericReader reader)

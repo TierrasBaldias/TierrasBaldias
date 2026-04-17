@@ -44,11 +44,7 @@ namespace Server.Mobiles
             this.Karma = -4500;
 
             this.VirtualArmor = 40;
-
-            this.PackItem(new EssencePrecision());
-
-            this.ControlSlots = 4;
-
+            
             this.PackItem(new SulfurousAsh(3));
 
             this.AddItem(new LightSource());
@@ -70,7 +66,7 @@ namespace Server.Mobiles
         {
             get
             {
-                return new Type[] { typeof(TokenOfHolyFavor), typeof(SwordOfShatteredHopes) };
+                return new Type[] { typeof(TokenOfHolyFavor), typeof(SwordOfShatteredHopes), typeof(LegacyOfDespair) };
             }
         }
         public override double DispelDifficulty
@@ -116,9 +112,6 @@ namespace Server.Mobiles
         {
             base.Deserialize(reader);
             int version = reader.ReadInt();
-
-            if (this.BaseSoundID == 274)
-                this.BaseSoundID = 838;
         }
     }
 }

@@ -7,53 +7,17 @@ namespace Server.Items
         [Constructable]
         public DustyMuseumBag()
         {
-            this.AddItem(new Gold(6000));
+            DropItem(new Gold(6000));
+            DropItem(new TerMurQuestRewardBook());
 
-            switch (Utility.Random(9))
+            for (int i = 0; i < Utility.RandomMinMax(7, 9); i++)
             {
-                case 0:
-                    this.AddItem(new Amber(5));
-                    break;
-                case 1:
-                    this.AddItem(new Amethyst(5));
-                    break;
-                case 2:
-                    this.AddItem(new Citrine(5));
-                    break;
-                case 3:
-                    this.AddItem(new Ruby(5));
-                    break;
-                case 4:
-                    this.AddItem(new Emerald(5));
-                    break;
-                case 5:
-                    this.AddItem(new Diamond(5));
-                    break;
-                case 6:
-                    this.AddItem(new Sapphire(5));
-                    break;
-                case 7:
-                    this.AddItem(new StarSapphire(5));
-                    break;
-                case 8:
-                    this.AddItem(new Tourmaline(5));
-                    break;
+                DropItemStacked(Loot.RandomGem());
             }
 
-            switch (Utility.Random(4))
+            for (int i = 0; i < Utility.RandomMinMax(3, 5); i++)
             {
-                case 0:
-                    this.AddItem(new MagicalResidue(10));
-                    break;
-                case 1:
-                    this.AddItem(new RelicFragment(10));
-                    break;
-                case 2:
-                    this.AddItem(new DelicateScales(10));
-                    break;
-                case 3:
-                    this.AddItem(new ChagaMushroom(10));
-                    break;
+                DropItemStacked(Loot.RandomMLResource());
             }
         }
 

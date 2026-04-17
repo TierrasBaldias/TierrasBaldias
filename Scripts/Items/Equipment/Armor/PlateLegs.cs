@@ -1,7 +1,9 @@
 using System;
+using Server.Engines.Craft;
 
 namespace Server.Items
 {
+    [Alterable(typeof(DefBlacksmithy), typeof(GargishPlateLegs))]
     [FlipableAttribute(0x1411, 0x141a)]
     public class PlateLegs : BaseArmor
     {
@@ -9,7 +11,7 @@ namespace Server.Items
         public PlateLegs()
             : base(0x1411)
         {
-            this.Weight = 7.0;
+            Weight = 7.0;
         }
 
         public PlateLegs(Serial serial)

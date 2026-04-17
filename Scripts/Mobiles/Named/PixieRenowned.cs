@@ -45,8 +45,6 @@ namespace Server.Mobiles
 
             this.VirtualArmor = 100;
 
-            this.PackItem(new EssenceFeeling());
-
             if (0.02 > Utility.RandomDouble())
                 this.PackStatue();				
         }
@@ -67,7 +65,7 @@ namespace Server.Mobiles
         {
             get
             {
-                return new Type[] { typeof(SwordOfShatteredHopes), typeof(PillarOfStrength) };
+                return new Type[] { typeof(PillarOfStrength), typeof(SwordOfShatteredHopes) };
             }
         }
         public override bool InitialInnocent

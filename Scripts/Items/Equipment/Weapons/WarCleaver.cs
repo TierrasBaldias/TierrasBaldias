@@ -1,7 +1,9 @@
 using System;
+using Server.Engines.Craft;
 
 namespace Server.Items
 {
+    [Alterable(typeof(DefBlacksmithy), typeof(Shortblade))]
     [FlipableAttribute(0x2D2F, 0x2D23)]
     public class WarCleaver : BaseKnife
     {
@@ -9,7 +11,8 @@ namespace Server.Items
         public WarCleaver()
             : base(0x2D2F)
         {
-            this.Weight = 10.0;
+            Weight = 10.0;
+            Layer = Layer.TwoHanded;
         }
 
         public WarCleaver(Serial serial)
@@ -146,15 +149,13 @@ namespace Server.Items
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);
-
-            writer.WriteEncodedInt(0); // version
+            writer.WriteEncodedInt(1); // version
         }
 
         public override void Deserialize(GenericReader reader)
         {
             base.Deserialize(reader);
-
-            int version = reader.ReadEncodedInt();
+            int version = reader.ReadEncodedInt();           
         }
     }
 }

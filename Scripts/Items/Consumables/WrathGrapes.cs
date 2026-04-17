@@ -2,17 +2,22 @@ using System;
 
 namespace Server.Items
 {
-    public class WrathGrapes : BaseMagicalFood
+    [TypeAlias("Server.Items.WrathGrapes")]
+    public class GrapesOfWrath : BaseMagicalFood, ICommodity
     {
+        TextDefinition ICommodity.Description { get { return LabelNumber; } }
+        bool ICommodity.IsDeedable { get { return true; } }
+
         [Constructable]
-        public WrathGrapes()
+        public GrapesOfWrath()
             : base(0x2FD7)
         {
-            this.Weight = 1.0;
-            this.Hue = 0x482;
+            Weight = 1.0;
+            Hue = 0x482;
+            Stackable = true;
         }
 
-        public WrathGrapes(Serial serial)
+        public GrapesOfWrath(Serial serial)
             : base(serial)
         {
         }
@@ -21,7 +26,7 @@ namespace Server.Items
         {
             get
             {
-                return MagicalFood.WrathGrapes;
+                return MagicalFood.GrapesOfWrath;
             }
         }
         public override TimeSpan Cooldown
@@ -45,6 +50,18 @@ namespace Server.Items
                 return 1074847;
             }
         }// The grapes of wrath invigorate you for a short time, allowing you to deal extra damage.
+
+        public override bool Eat(Mobile from)
+        {
+            if (base.Eat(from))
+            {
+                BuffInfo.AddBuff(from, new BuffInfo(BuffIcon.GrapesOfWrath, 1032247, 1153762, Duration, from, "15\t35"));
+                return true;
+            }
+
+            return false;
+        }
+
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);

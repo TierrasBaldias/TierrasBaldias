@@ -1,9 +1,3 @@
-#region Header
-// **********
-// ServUO - EventLog.cs
-// **********
-#endregion
-
 #region References
 using System;
 using System.Diagnostics;
@@ -17,15 +11,15 @@ namespace Server
 	{
 		static EventLog()
 		{
-			if (!DiagELog.SourceExists("RunUO"))
+			if (!DiagELog.SourceExists("ServUO"))
 			{
-				DiagELog.CreateEventSource("RunUO", "Application");
+				DiagELog.CreateEventSource("ServUO", "Application");
 			}
 		}
 
 		public static void Error(int eventID, string text)
 		{
-			DiagELog.WriteEntry("RunUO", text, EventLogEntryType.Error, eventID);
+			DiagELog.WriteEntry("ServUO", text, EventLogEntryType.Error, eventID);
 		}
 
 		public static void Error(int eventID, string format, params object[] args)
@@ -35,7 +29,7 @@ namespace Server
 
 		public static void Warning(int eventID, string text)
 		{
-			DiagELog.WriteEntry("RunUO", text, EventLogEntryType.Warning, eventID);
+			DiagELog.WriteEntry("ServUO", text, EventLogEntryType.Warning, eventID);
 		}
 
 		public static void Warning(int eventID, string format, params object[] args)
@@ -45,7 +39,7 @@ namespace Server
 
 		public static void Inform(int eventID, string text)
 		{
-			DiagELog.WriteEntry("RunUO", text, EventLogEntryType.Information, eventID);
+			DiagELog.WriteEntry("ServUO", text, EventLogEntryType.Information, eventID);
 		}
 
 		public static void Inform(int eventID, string format, params object[] args)

@@ -11,7 +11,7 @@ namespace Server.Movement
 {
 	public class FastMovementImpl : IMovementImpl
 	{
-		public static bool Enabled = false;
+		public static bool Enabled = true;
 
 		private const int PersonHeight = 16;
 		private const int StepHeight = 2;
@@ -36,7 +36,7 @@ namespace Server.Movement
 			return tile.Z + itemData.CalcHeight <= ourZ || ourTop <= tile.Z || (itemData.Flags & ImpassableSurface) == 0;
 		}
 
-		private static bool IsOk(Item item, int ourZ, int ourTop, bool ignoreDoors, bool ignoreSpellFields)
+		private static bool IsOk(Mobile m, Item item, int ourZ, int ourTop, bool ignoreDoors, bool ignoreSpellFields)
 		{
 			var itemID = item.ItemID & TileData.MaxItemValue;
 			var itemData = TileData.ItemTable[itemID];
@@ -49,10 +49,16 @@ namespace Server.Movement
 			if (((itemData.Flags & TileFlag.Door) != 0 || itemID == 0x692 || itemID == 0x846 || itemID == 0x873 ||
 				 (itemID >= 0x6F5 && itemID <= 0x6F6)) && ignoreDoors)
 			{
-				return true;
+				return !(item is BaseHouseDoor) || m == null || ((BaseHouseDoor)item).CheckAccess(m);
 			}
 
 			if ((itemID == 0x82 || itemID == 0x3946 || itemID == 0x3956) && ignoreSpellFields)
+			{
+				return true;
+			}
+
+			// hidden containers, per EA
+			if ((itemData.Flags & TileFlag.Container) != 0 && !item.Visible)
 			{
 				return true;
 			}
@@ -61,6 +67,7 @@ namespace Server.Movement
 		}
 
 		private static bool IsOk(
+			Mobile m,
 			bool ignoreDoors,
 			bool ignoreSpellFields,
 			int ourZ,
@@ -68,12 +75,12 @@ namespace Server.Movement
 			IEnumerable<StaticTile> tiles,
 			IEnumerable<Item> items)
 		{
-			return tiles.All(t => IsOk(t, ourZ, ourTop)) && items.All(i => IsOk(i, ourZ, ourTop, ignoreDoors, ignoreSpellFields));
+			return tiles.All(t => IsOk(t, ourZ, ourTop)) && items.All(i => IsOk(m, i, ourZ, ourTop, ignoreDoors, ignoreSpellFields));
 		}
 
 		private static bool Check(
 			Map map,
-			Mobile m,
+			IPoint3D p,
 			List<Item> items,
 			int x,
 			int y,
@@ -111,7 +118,9 @@ namespace Server.Movement
 			var stepTop = startTop + StepHeight;
 			var checkTop = startZ + PersonHeight;
 
-			var ignoreDoors = MovementImpl.AlwaysIgnoreDoors || !m.Alive || m.IsDeadBondedPet || m.Body.IsGhost ||
+            Mobile m = p as Mobile;
+
+			var ignoreDoors = MovementImpl.AlwaysIgnoreDoors || m == null || !m.Alive || m.IsDeadBondedPet || m.Body.IsGhost ||
 							  m.Body.BodyID == 987;
 			var ignoreSpellFields = m is PlayerMobile && map.MapID != 0;
 
@@ -123,16 +132,17 @@ namespace Server.Movement
 			foreach (var tile in tiles)
 			{
 				itemData = TileData.ItemTable[tile.ID & TileData.MaxItemValue];
+                flags = itemData.Flags;
 
-				#region SA
-				if (m.Flying && Insensitive.Equals(itemData.Name, "hover over"))
+                #region SA
+                if (m != null && m.Flying && (Insensitive.Equals(itemData.Name, "hover over") || (flags & TileFlag.HoverOver) != 0))
 				{
 					newZ = tile.Z;
 					return true;
 				}
 
 				// Stygian Dragon
-				if (m.Body == 826 && map != null && map.MapID == 5)
+				if (m != null && m.Body == 826 && map != null && map.MapID == 5)
 				{
 					if (x >= 307 && x <= 354 && y >= 126 && y <= 192)
 					{
@@ -158,8 +168,6 @@ namespace Server.Movement
 				}
 				#endregion
 
-				flags = itemData.Flags;
-
 				if ((flags & ImpassableSurface) != TileFlag.Surface && (!canSwim || (flags & TileFlag.Wet) == 0))
 				{
 					continue;
@@ -178,7 +186,7 @@ namespace Server.Movement
 
 				if (moveIsOk)
 				{
-					var cmp = Math.Abs(ourZ - m.Z) - Math.Abs(newZ - m.Z);
+					var cmp = Math.Abs(ourZ - p.Z) - Math.Abs(newZ - p.Z);
 
 					if (cmp > 0 || (cmp == 0 && ourZ > newZ))
 					{
@@ -217,7 +225,7 @@ namespace Server.Movement
 					continue;
 				}
 
-				if (!IsOk(ignoreDoors, ignoreSpellFields, ourZ, testTop, tiles, items))
+				if (!IsOk(m, ignoreDoors, ignoreSpellFields, ourZ, testTop, tiles, items))
 				{
 					continue;
 				}
@@ -234,7 +242,7 @@ namespace Server.Movement
 				flags = itemData.Flags;
 
 				#region SA
-				if (m.Flying && Insensitive.Equals(itemData.Name, "hover over"))
+				if (m != null && m.Flying && (Insensitive.Equals(itemData.Name, "hover over") || (flags & TileFlag.HoverOver) != 0))
 				{
 					newZ = item.Z;
 					return true;
@@ -246,7 +254,7 @@ namespace Server.Movement
 					continue;
 				}
 
-				if ((flags & ImpassableSurface) != TileFlag.Surface && (!m.CanSwim || (flags & TileFlag.Wet) == 0))
+				if ((flags & ImpassableSurface) != TileFlag.Surface && ((m != null && !m.CanSwim) || (flags & TileFlag.Wet) == 0))
 				{
 					continue;
 				}
@@ -264,7 +272,7 @@ namespace Server.Movement
 
 				if (moveIsOk)
 				{
-					var cmp = Math.Abs(ourZ - m.Z) - Math.Abs(newZ - m.Z);
+					var cmp = Math.Abs(ourZ - p.Z) - Math.Abs(newZ - p.Z);
 
 					if (cmp > 0 || (cmp == 0 && ourZ > newZ))
 					{
@@ -303,7 +311,7 @@ namespace Server.Movement
 					continue;
 				}
 
-				if (!IsOk(ignoreDoors, ignoreSpellFields, ourZ, testTop, tiles, items))
+				if (!IsOk(m, ignoreDoors, ignoreSpellFields, ourZ, testTop, tiles, items))
 				{
 					continue;
 				}
@@ -331,7 +339,7 @@ namespace Server.Movement
 
 			if (moveIsOk)
 			{
-				var cmp = Math.Abs(ourZ - m.Z) - Math.Abs(newZ - m.Z);
+				var cmp = Math.Abs(ourZ - p.Z) - Math.Abs(newZ - p.Z);
 
 				if (cmp > 0 || (cmp == 0 && ourZ > newZ))
 				{
@@ -339,7 +347,7 @@ namespace Server.Movement
 				}
 			}
 
-			if (!shouldCheck || !IsOk(ignoreDoors, ignoreSpellFields, ourZ, testTop, tiles, items))
+			if (!shouldCheck || !IsOk(m, ignoreDoors, ignoreSpellFields, ourZ, testTop, tiles, items))
 			{
 				return moveIsOk;
 			}
@@ -350,11 +358,11 @@ namespace Server.Movement
 			return moveIsOk;
 		}
 
-		public bool CheckMovement(Mobile m, Map map, Point3D loc, Direction d, out int newZ)
+        public bool CheckMovement(IPoint3D p, Map map, Point3D loc, Direction d, out int newZ)
 		{
 			if (!Enabled && _Successor != null)
 			{
-				return _Successor.CheckMovement(m, map, loc, d, out newZ);
+				return _Successor.CheckMovement(p, map, loc, d, out newZ);
 			}
 
 			if (map == null || map == Map.Internal)
@@ -389,7 +397,7 @@ namespace Server.Movement
 			var ignoreMovableImpassables = MovementImpl.IgnoreMovableImpassables;
 			var reqFlags = ImpassableSurface;
 
-			if (m.CanSwim)
+			if (p is Mobile && ((Mobile)p).CanSwim)
 			{
 				reqFlags |= TileFlag.Wet;
 			}
@@ -417,19 +425,20 @@ namespace Server.Movement
 				itemsRight = Enumerable.Empty<Item>();
 			}
 
-			GetStartZ(m, map, loc, itemsStart, out startZ, out startTop);
+			GetStartZ(p, map, loc, itemsStart, out startZ, out startTop);
 
 			List<Item> list = null;
 
 			MovementPool.AcquireMoveCache(ref list, itemsForward);
+            Mobile m = p as Mobile;
 
-			var moveIsOk = Check(map, m, list, xForward, yForward, startTop, startZ, m.CanSwim, m.CantWalk, out newZ);
+			var moveIsOk = Check(map, p, list, xForward, yForward, startTop, startZ, m != null && m.CanSwim, m != null && m.CantWalk, out newZ);
 
-			if (moveIsOk && checkDiagonals)
+			if (m != null && moveIsOk && checkDiagonals)
 			{
 				int hold;
 
-				if (m.Player && m.AccessLevel < AccessLevel.GameMaster)
+                if (m.Player && m.AccessLevel < AccessLevel.GameMaster)
 				{
 					MovementPool.AcquireMoveCache(ref list, itemsLeft);
 
@@ -451,11 +460,11 @@ namespace Server.Movement
 				{
 					MovementPool.AcquireMoveCache(ref list, itemsLeft);
 
-					if (!Check(map, m, list, xLeft, yLeft, startTop, startZ, m.CanSwim, m.CantWalk, out hold))
+                    if (!Check(map, m, list, xLeft, yLeft, startTop, startZ, m.CanSwim, m.CantWalk, out hold))
 					{
 						MovementPool.AcquireMoveCache(ref list, itemsRight);
 
-						if (!Check(map, m, list, xRight, yRight, startTop, startZ, m.CanSwim, m.CantWalk, out hold))
+                        if (!Check(map, m, list, xRight, yRight, startTop, startZ, m.CanSwim, m.CantWalk, out hold))
 						{
 							moveIsOk = false;
 						}
@@ -471,16 +480,6 @@ namespace Server.Movement
 			}
 
 			return moveIsOk;
-		}
-
-		public bool CheckMovement(Mobile m, Direction d, out int newZ)
-		{
-			if (!Enabled && _Successor != null)
-			{
-				return _Successor.CheckMovement(m, d, out newZ);
-			}
-
-			return CheckMovement(m, m.Map, m.Location, d, out newZ);
 		}
 
 		private static bool Verify(Item item, int x, int y)
@@ -518,7 +517,7 @@ namespace Server.Movement
 			return Verify(item, reqFlags, ignoreMovableImpassables) && Verify(item, x, y);
 		}
 
-		private static void GetStartZ(Mobile m, Map map, Point3D loc, IEnumerable<Item> itemList, out int zLow, out int zTop)
+		private static void GetStartZ(IPoint3D p, Map map, Point3D loc, IEnumerable<Item> itemList, out int zLow, out int zTop)
 		{
 			int xCheck = loc.X, yCheck = loc.Y;
 
@@ -526,13 +525,18 @@ namespace Server.Movement
 			var landData = TileData.LandTable[landTile.ID & TileData.MaxLandValue];
 			var landBlocks = (landData.Flags & TileFlag.Impassable) != 0;
 
-			if (landBlocks && m.CanSwim && (landData.Flags & TileFlag.Wet) != 0)
+            Mobile m = p as Mobile;
+
+			if (m != null)
 			{
-				landBlocks = false;
-			}
-			else if (m.CantWalk && (landData.Flags & TileFlag.Wet) == 0)
-			{
-				landBlocks = true;
+				if (landBlocks && m.CanSwim && (landData.Flags & TileFlag.Wet) != 0)
+				{
+					landBlocks = false;
+				}
+				else if (m.CantWalk && (landData.Flags & TileFlag.Wet) == 0)
+				{
+					landBlocks = true;
+				}
 			}
 
 			int landZ = 0, landCenter = 0, landTop = 0;
@@ -564,7 +568,7 @@ namespace Server.Movement
 					continue;
 				}
 
-				if ((tileData.Flags & TileFlag.Surface) == 0 && (!m.CanSwim || (tileData.Flags & TileFlag.Wet) == 0))
+				if ((tileData.Flags & TileFlag.Surface) == 0 && ((m != null && !m.CanSwim) || (tileData.Flags & TileFlag.Wet) == 0))
 				{
 					continue;
 				}
@@ -574,7 +578,7 @@ namespace Server.Movement
 					continue;
 				}
 
-				if (m.CantWalk && (tileData.Flags & TileFlag.Wet) == 0)
+				if (m != null && m.CantWalk && (tileData.Flags & TileFlag.Wet) == 0)
 				{
 					continue;
 				}
@@ -605,7 +609,7 @@ namespace Server.Movement
 					continue;
 				}
 
-				if ((itemData.Flags & TileFlag.Surface) == 0 && (!m.CanSwim || (itemData.Flags & TileFlag.Wet) == 0))
+				if ((itemData.Flags & TileFlag.Surface) == 0 && ((m != null && !m.CanSwim) || (itemData.Flags & TileFlag.Wet) == 0))
 				{
 					continue;
 				}
@@ -615,7 +619,7 @@ namespace Server.Movement
 					continue;
 				}
 
-				if (m.CantWalk && (itemData.Flags & TileFlag.Wet) == 0)
+				if (m != null && m.CantWalk && (itemData.Flags & TileFlag.Wet) == 0)
 				{
 					continue;
 				}

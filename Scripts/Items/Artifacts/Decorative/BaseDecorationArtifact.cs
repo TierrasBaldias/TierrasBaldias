@@ -2,9 +2,11 @@ using System;
 
 namespace Server.Items
 {
-    public abstract class BaseDecorationArtifact : Item
+    public abstract class BaseDecorationArtifact : Item, IArtifact
     {
 		public override bool IsArtifact { get { return true; } }
+        public virtual bool ShowArtifactRarity { get { return true; } }
+
         public BaseDecorationArtifact(int itemID)
             : base(itemID)
         {
@@ -28,7 +30,8 @@ namespace Server.Items
         {
             base.GetProperties(list);
 
-            list.Add(1061078, this.ArtifactRarity.ToString()); // artifact rarity ~1_val~
+            if(ShowArtifactRarity)
+                list.Add(1061078, this.ArtifactRarity.ToString()); // artifact rarity ~1_val~
         }
 
         public override void Serialize(GenericWriter writer)

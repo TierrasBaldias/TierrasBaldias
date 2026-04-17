@@ -9,7 +9,7 @@ namespace Server.Engines.Quests
         public ABrokenVaseQuest()
 
         {
-            AddObjective(new ObtainObjective(typeof (AncientPotteryFragments), "Ancient Pottery Fragments", 10, 0x223B));
+            AddObjective(new ObtainObjective(typeof (AncientPotteryFragments), "Ancient Pottery Fragments", 10, 0x223B, 0, 2108));
 
             AddReward(new BaseReward(typeof (MeagerMuseumBag), 1112993));
             AddReward(new BaseReward("Loyalty Rating"));
@@ -42,16 +42,6 @@ namespace Server.Engines.Quests
             get { return 1112920; }
         }
 
-        public override void GiveRewards()
-        {
-            if (Owner is PlayerMobile)
-            {
-                Owner.Exp += 5;
-                Owner.SendMessage("You have been awarded 5 Queens Loyalty Points!");
-                base.GiveRewards();
-            }
-        }
-
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);
@@ -71,7 +61,7 @@ namespace Server.Engines.Quests
     {
         public PuttingThePiecesTogetherQuest()
         {
-            AddObjective(new ObtainObjective(typeof (TatteredAncientScroll), "Tattered Ancient Scrolls", 5, 0x2F5F));
+            AddObjective(new ObtainObjective(typeof(TatteredAncientScroll), "Tattered Ancient Scrolls", 5, 0x1437));
 
             AddReward(new BaseReward(typeof (DustyMuseumBag), 1112994));
             AddReward(new BaseReward("Loyalty Rating"));
@@ -104,16 +94,6 @@ namespace Server.Engines.Quests
             get { return 1112924; }
         }
 
-        public override void GiveRewards()
-        {
-            if (Owner != null)
-            {
-                Owner.Exp += 15;
-                Owner.SendMessage("You have been awarded 15 Queens Loyalty Points!");
-                base.GiveRewards();
-            }
-        }
-
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);
@@ -133,7 +113,7 @@ namespace Server.Engines.Quests
     {
         public YeOldeGargishQuest()
         {
-            AddObjective(new ObtainObjective(typeof (UntransTome), "Untranslated Ancient Tome", 1, 0xEFA));
+            AddObjective(new ObtainObjective(typeof(UntranslatedAncientTome), "Untranslated Ancient Tome", 1, 0xFF2, 0, 2405));
 
             AddReward(new BaseReward(typeof (BulgingMuseumBag), 1112995));
             AddReward(new BaseReward("Loyalty Rating"));
@@ -164,16 +144,6 @@ namespace Server.Engines.Quests
         public override object Complete
         {
             get { return 1112928; }
-        }
-
-        public override void GiveRewards()
-        {
-            if (Owner != null)
-            {
-                Owner.Exp += 50;
-                Owner.SendMessage("You have been awarded 50 Queens Loyalty Points!");
-                base.GiveRewards();
-            }
         }
 
         public override void Serialize(GenericWriter writer)

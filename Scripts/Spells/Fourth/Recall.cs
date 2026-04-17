@@ -17,8 +17,14 @@ namespace Server.Spells.Fourth
             Reagent.BlackPearl,
             Reagent.Bloodmoss,
             Reagent.MandrakeRoot);
+
         private readonly RunebookEntry m_Entry;
         private readonly Runebook m_Book;
+        private readonly VendorSearchMap m_SearchMap;
+        private readonly AuctionMap m_AuctionMap;
+
+        public bool NoSkillRequirement { get { return (Core.SE && (m_Book != null || m_AuctionMap != null || m_SearchMap != null)) || TransformationSpellHelper.UnderTransformation(Caster, typeof(WraithFormSpell)); } }
+
         public RecallSpell(Mobile caster, Item scroll)
             : this(caster, scroll, null, null)
         {
@@ -27,8 +33,20 @@ namespace Server.Spells.Fourth
         public RecallSpell(Mobile caster, Item scroll, RunebookEntry entry, Runebook book)
             : base(caster, scroll, m_Info)
         {
-            this.m_Entry = entry;
-            this.m_Book = book;
+            m_Entry = entry;
+            m_Book = book;
+        }
+
+        public RecallSpell(Mobile caster, Item scroll, VendorSearchMap map)
+            : base(caster, scroll, m_Info)
+        {
+            m_SearchMap = map;
+        }
+
+        public RecallSpell(Mobile caster, Item scroll, AuctionMap map)
+            : base(caster, scroll, m_Info)
+        {
+            m_AuctionMap = map;
         }
 
         public override SpellCircle Circle
@@ -40,9 +58,7 @@ namespace Server.Spells.Fourth
         }
         public override void GetCastSkills(out double min, out double max)
         {
-            if (TransformationSpellHelper.UnderTransformation(this.Caster, typeof(WraithFormSpell)))
-                min = max = 0;
-            else if (Core.SE && this.m_Book != null)	//recall using Runebook charge
+            if (NoSkillRequirement)	//recall using Runebook charge, wraith form or using vendor search map
                 min = max = 0;
             else
                 base.GetCastSkills(out min, out max);
@@ -50,112 +66,174 @@ namespace Server.Spells.Fourth
 
         public override void OnCast()
         {
-            if (this.m_Entry == null)
-                this.Caster.Target = new InternalTarget(this);
+            if (m_Entry == null && m_SearchMap == null && m_AuctionMap == null)
+            {
+                Caster.Target = new InternalTarget(this);
+            }
             else
-                this.Effect(this.m_Entry.Location, this.m_Entry.Map, true);
+            {
+                Point3D loc;
+                Map map;
+
+                if (m_Entry != null)
+                {
+                    if (m_Entry.Type != RecallRuneType.Ship)
+                    {
+                        loc = m_Entry.Location;
+                        map = m_Entry.Map;
+                    }
+                    else
+                    {
+                        Effect(m_Entry.Galleon);
+                        return;
+                    }
+                }
+                else if (m_SearchMap != null)
+                {
+                    loc = m_SearchMap.GetLocation(Caster);
+                    map = m_SearchMap.GetMap();
+                }
+                else
+                {
+                    loc = m_AuctionMap.GetLocation(Caster);
+                    map = m_AuctionMap.GetMap();
+                }
+
+                Effect(loc, map, true, false);
+            }
         }
 
         public override bool CheckCast()
         {
-            if (Factions.Sigil.ExistsOn(this.Caster))
+            if (Factions.Sigil.ExistsOn(Caster))
             {
-                this.Caster.SendLocalizedMessage(1061632); // You can't do that while carrying the sigil.
+                Caster.SendLocalizedMessage(1061632); // You can't do that while carrying the sigil.
                 return false;
             }
-            else if (this.Caster.Criminal)
+            else if (Caster.Criminal)
             {
-                this.Caster.SendLocalizedMessage(1005561, "", 0x22); // Thou'rt a criminal and cannot escape so easily.
+                Caster.SendLocalizedMessage(1005561, "", 0x22); // Thou'rt a criminal and cannot escape so easily.
                 return false;
             }
-            else if (SpellHelper.CheckCombat(this.Caster))
+            else if (SpellHelper.CheckCombat(Caster))
             {
-                this.Caster.SendLocalizedMessage(1005564, "", 0x22); // Wouldst thou flee during the heat of battle??
+                Caster.SendLocalizedMessage(1005564, "", 0x22); // Wouldst thou flee during the heat of battle??
                 return false;
             }
-            else if (Server.Misc.WeightOverloading.IsOverloaded(this.Caster))
+            else if (Misc.WeightOverloading.IsOverloaded(Caster))
             {
-                this.Caster.SendLocalizedMessage(502359, "", 0x22); // Thou art too encumbered to move.
+                Caster.SendLocalizedMessage(502359, "", 0x22); // Thou art too encumbered to move.
                 return false;
             }
 
-            return SpellHelper.CheckTravel(this.Caster, TravelCheckType.RecallFrom);
+            return SpellHelper.CheckTravel(Caster, TravelCheckType.RecallFrom);
         }
 
-        public void Effect(Point3D loc, Map map, bool checkMulti)
+        public void Effect(BaseGalleon galleon)
         {
-            if (Factions.Sigil.ExistsOn(this.Caster))
+            if (galleon == null)
             {
-                this.Caster.SendLocalizedMessage(1061632); // You can't do that while carrying the sigil.
+                Caster.SendLocalizedMessage(1116767); // The ship could not be located.
             }
-            else if (map == null || (!Core.AOS && this.Caster.Map != map))
+            else if (galleon.Map == Map.Internal)
             {
-                this.Caster.SendLocalizedMessage(1005569); // You can not recall to another facet.
+                Caster.SendLocalizedMessage(1149569); // That ship is in dry dock.
             }
-            else if (!SpellHelper.CheckTravel(this.Caster, TravelCheckType.RecallFrom))
+            else if (!galleon.HasAccess(Caster))
             {
+                Caster.SendLocalizedMessage(1116617); // You do not have permission to board this ship.
             }
-            else if (!SpellHelper.CheckTravel(this.Caster, map, loc, TravelCheckType.RecallTo))
+            else
             {
+                Effect(galleon.GetMarkedLocation(), galleon.Map, false, true);
             }
-            else if (map == Map.Felucca && this.Caster is PlayerMobile && ((PlayerMobile)this.Caster).Young)
-            {
-                this.Caster.SendLocalizedMessage(1049543); // You decide against traveling to Felucca while you are still young.
-            }
-            else if (this.Caster.Kills >= 5 && map != Map.Felucca)
-            {
-                this.Caster.SendLocalizedMessage(1019004); // You are not allowed to travel there.
-            }
-            else if (this.Caster.Criminal)
-            {
-                this.Caster.SendLocalizedMessage(1005561, "", 0x22); // Thou'rt a criminal and cannot escape so easily.
-            }
-            else if (SpellHelper.CheckCombat(this.Caster))
-            {
-                this.Caster.SendLocalizedMessage(1005564, "", 0x22); // Wouldst thou flee during the heat of battle??
-            }
-            else if (Server.Misc.WeightOverloading.IsOverloaded(this.Caster))
-            {
-                this.Caster.SendLocalizedMessage(502359, "", 0x22); // Thou art too encumbered to move.
-            }
-            else if (!map.CanSpawnMobile(loc.X, loc.Y, loc.Z))
-            {
-                this.Caster.SendLocalizedMessage(501942); // That location is blocked.
-            }
-            else if ((checkMulti && SpellHelper.CheckMulti(loc, map)))
-            {
-                this.Caster.SendLocalizedMessage(501942); // That location is blocked.
-            }
-            else if (this.m_Book != null && this.m_Book.CurCharges <= 0)
-            {
-                this.Caster.SendLocalizedMessage(502412); // There are no charges left on that item.
-            }
-            else if (this.Caster.Holding != null)
-            {
-                this.Caster.SendLocalizedMessage(1071955); // You cannot teleport while dragging an object.
-            }
-            else if (this.CheckSequence())
-            {
-                BaseCreature.TeleportPets(this.Caster, loc, map, true);
+        }
 
-                if (this.m_Book != null)
-                    --this.m_Book.CurCharges;
+        public void Effect(Point3D loc, Map map, bool checkMulti, bool isboatkey = false)
+        {
+            if (Factions.Sigil.ExistsOn(Caster))
+            {
+                Caster.SendLocalizedMessage(1061632); // You can't do that while carrying the sigil.
+            }
+            else if (map == null || (!Core.AOS && Caster.Map != map))
+            {
+                Caster.SendLocalizedMessage(1005569); // You can not recall to another facet.
+            }
+            else if (!SpellHelper.CheckTravel(Caster, TravelCheckType.RecallFrom))
+            {
+            }
+            else if (!SpellHelper.CheckTravel(Caster, map, loc, TravelCheckType.RecallTo))
+            {
+            }
+            else if (map == Map.Felucca && Caster is PlayerMobile && ((PlayerMobile)Caster).Young)
+            {
+                Caster.SendLocalizedMessage(1049543); // You decide against traveling to Felucca while you are still young.
+            }
+            else if (SpellHelper.RestrictRedTravel && Caster.Murderer && map.Rules != MapRules.FeluccaRules)
+            {
+                Caster.SendLocalizedMessage(1019004); // You are not allowed to travel there.
+            }
+            else if (Caster.Criminal)
+            {
+                Caster.SendLocalizedMessage(1005561, "", 0x22); // Thou'rt a criminal and cannot escape so easily.
+            }
+            else if (SpellHelper.CheckCombat(Caster))
+            {
+                Caster.SendLocalizedMessage(1005564, "", 0x22); // Wouldst thou flee during the heat of battle??
+            }
+            else if (Misc.WeightOverloading.IsOverloaded(Caster))
+            {
+                Caster.SendLocalizedMessage(502359, "", 0x22); // Thou art too encumbered to move.
+            }
+            else if (!map.CanSpawnMobile(loc.X, loc.Y, loc.Z) && !isboatkey)
+            {
+                Caster.SendLocalizedMessage(501025); // Something is blocking the location.
+            }
+            else if (checkMulti && SpellHelper.CheckMulti(loc, map) && !isboatkey)
+            {
+                Caster.SendLocalizedMessage(501025); // Something is blocking the location.
+            }
+            else if (m_Book != null && m_Book.CurCharges <= 0)
+            {
+                Caster.SendLocalizedMessage(502412); // There are no charges left on that item.
+            }
+            else if (Caster.Holding != null)
+            {
+                Caster.SendLocalizedMessage(1071955); // You cannot teleport while dragging an object.
+            }
+            else if (Engines.CityLoyalty.CityTradeSystem.HasTrade(Caster))
+            {
+                Caster.SendLocalizedMessage(1151733); // You cannot do that while carrying a Trade Order.
+            }
+            else if (CheckSequence())
+            {
+                BaseCreature.TeleportPets(Caster, loc, map, true);
 
-                this.Caster.PlaySound(0x1FC);
-                this.Caster.MoveToWorld(loc, map);
-                this.Caster.PlaySound(0x1FC);
+                if (m_Book != null)
+                    --m_Book.CurCharges;
+
+                if (m_SearchMap != null)
+                    m_SearchMap.OnBeforeTravel(Caster);
+
+                if (m_AuctionMap != null)
+                    m_AuctionMap.OnBeforeTravel(Caster);
+
+                Caster.PlaySound(0x1FC);
+                Caster.MoveToWorld(loc, map);
+                Caster.PlaySound(0x1FC);
             }
 
-            this.FinishSequence();
+            FinishSequence();
         }
 
         private class InternalTarget : Target
         {
             private readonly RecallSpell m_Owner;
+
             public InternalTarget(RecallSpell owner)
                 : base(Core.ML ? 10 : 12, false, TargetFlags.None)
             {
-                this.m_Owner = owner;
+                m_Owner = owner;
 
                 owner.Caster.LocalOverheadMessage(MessageType.Regular, 0x3B2, 501029); // Select Marked item.
             }
@@ -167,34 +245,60 @@ namespace Server.Spells.Fourth
                     RecallRune rune = (RecallRune)o;
 
                     if (rune.Marked)
-                        this.m_Owner.Effect(rune.Target, rune.TargetMap, true);
+                    {
+                        if (rune.Type == RecallRuneType.Ship)
+                        {
+                            m_Owner.Effect(rune.Galleon);
+                        }
+                        else
+                        {
+                            m_Owner.Effect(rune.Target, rune.TargetMap, true);
+                        }
+                    }
                     else
+                    {
                         from.SendLocalizedMessage(501805); // That rune is not yet marked.
+                    }
                 }
                 else if (o is Runebook)
                 {
                     RunebookEntry e = ((Runebook)o).Default;
 
                     if (e != null)
-                        this.m_Owner.Effect(e.Location, e.Map, true);
+                    {
+                        if (e.Type == RecallRuneType.Ship)
+                        {
+                            m_Owner.Effect(e.Galleon);
+                        }
+                        else
+                        {
+                            m_Owner.Effect(e.Location, e.Map, true);
+                        }
+                    }
                     else
+                    {
                         from.SendLocalizedMessage(502354); // Target is not marked.
+                    }
                 }
                 else if (o is Key && ((Key)o).KeyValue != 0 && ((Key)o).Link is BaseBoat)
                 {
                     BaseBoat boat = ((Key)o).Link as BaseBoat;
 
                     if (!boat.Deleted && boat.CheckKey(((Key)o).KeyValue))
-                        this.m_Owner.Effect(boat.GetMarkedLocation(), boat.Map, false);
+                        m_Owner.Effect(boat.GetMarkedLocation(), boat.Map, false, true);
                     else
                         from.Send(new MessageLocalized(from.Serial, from.Body, MessageType.Regular, 0x3B2, 3, 502357, from.Name, "")); // I can not recall from that object.
                 }
-                else if (o is HouseRaffleDeed && ((HouseRaffleDeed)o).ValidLocation())
+                else if (o is Engines.NewMagincia.WritOfLease)
                 {
-                    HouseRaffleDeed deed = (HouseRaffleDeed)o;
+                    Engines.NewMagincia.WritOfLease lease = (Engines.NewMagincia.WritOfLease)o;
 
-                    this.m_Owner.Effect(deed.PlotLocation, deed.PlotFacet, true);
+                    if (lease.RecallLoc != Point3D.Zero && lease.Facet != null && lease.Facet != Map.Internal)
+                        m_Owner.Effect(lease.RecallLoc, lease.Facet, false);
+                    else
+                        from.Send(new MessageLocalized(from.Serial, from.Body, MessageType.Regular, 0x3B2, 3, 502357, from.Name, "")); // I can not recall from that object.
                 }
+
                 else
                 {
                     from.Send(new MessageLocalized(from.Serial, from.Body, MessageType.Regular, 0x3B2, 3, 502357, from.Name, "")); // I can not recall from that object.
@@ -207,7 +311,7 @@ namespace Server.Spells.Fourth
 
             protected override void OnTargetFinish(Mobile from)
             {
-                this.m_Owner.FinishSequence();
+                m_Owner.FinishSequence();
             }
         }
     }

@@ -2,7 +2,7 @@ using System;
 
 namespace Server.Items
 {
-    public class FruitBowl : Food
+    public class FruitBowl : Food, ICommodity
     {
         [Constructable]
         public FruitBowl()
@@ -17,6 +17,9 @@ namespace Server.Items
         {
         }
 
+        TextDefinition ICommodity.Description { get { return LabelNumber; } }
+        bool ICommodity.IsDeedable { get { return true; } }
+
         public override int LabelNumber
         {
             get
@@ -30,8 +33,10 @@ namespace Server.Items
             {
                 string modName = this.Serial.ToString();
 				
-                from.AddStatMod(new StatMod(StatType.Str, modName + "Str", (int)(from.RawStr * 0.08), TimeSpan.FromSeconds(75)));
-				
+                from.AddStatMod(new StatMod(StatType.Str, modName + "Str", 5, TimeSpan.FromSeconds(120)));
+                from.AddStatMod(new StatMod(StatType.Dex, modName + "Dex", 5, TimeSpan.FromSeconds(120)));
+                from.AddStatMod(new StatMod(StatType.Int, modName + "Int", 5, TimeSpan.FromSeconds(120)));
+
                 from.PlaySound(0x1EA);
                 from.FixedParticles(0x373A, 10, 15, 5018, EffectLayer.Waist);
 				

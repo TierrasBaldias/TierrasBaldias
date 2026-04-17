@@ -1,7 +1,9 @@
 using System;
+using Server.Engines.Craft;
 
 namespace Server.Items
 {
+    [Alterable(typeof(DefBlacksmithy), typeof(GargishPlateChest))]
     [FlipableAttribute(0x1415, 0x1416)]
     public class PlateChest : BaseArmor
     {
@@ -9,7 +11,7 @@ namespace Server.Items
         public PlateChest()
             : base(0x1415)
         {
-            this.Weight = 10.0;
+            Weight = 10.0;
         }
 
         public PlateChest(Serial serial)
@@ -111,9 +113,6 @@ namespace Server.Items
         {
             base.Deserialize(reader);
             int version = reader.ReadInt();
-
-            if (this.Weight == 1.0)
-                this.Weight = 10.0;
         }
     }
 }

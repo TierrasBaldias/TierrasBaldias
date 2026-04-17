@@ -44,8 +44,6 @@ namespace Server.Mobiles
             this.Karma = -6500;
 
             this.VirtualArmor = 56;
-
-            this.PackItem(new EssenceBalance());
 			
             this.AddItem(new Bow());
             this.PackItem(new Arrow(Utility.RandomMinMax(10, 30)));
@@ -119,12 +117,6 @@ namespace Server.Mobiles
         {
             base.Deserialize(reader);
             int version = reader.ReadInt();
-
-            if (this.Body == 42)
-            {
-                this.Body = 0x8E;
-                this.Hue = 0;
-            }
         }
     }
 }

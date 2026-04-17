@@ -42,6 +42,11 @@ namespace Server.Mobiles
 
             this.Fame = 3700;  // Guessed
             this.Karma = -3700;  // Guessed
+
+            for (int i = 0; i < Utility.RandomMinMax(0, 1); i++)
+            {
+                this.PackItem(Loot.RandomScroll(0, Loot.ArcanistScrollTypes.Length, SpellbookType.Arcanist));
+            }
         }
 		public override bool CanBeParagon { get { return false; } }
         /*
@@ -56,31 +61,27 @@ namespace Server.Mobiles
             : base(serial)
         {
         }
+		
+		public override int TreasureMapLevel { get { return 4; } }
 
         public override void GenerateLoot() // -- Need to verify
         {
             this.AddLoot(LootPack.FilthyRich);
         }
-        public override void OnDeath(Container c)
+
+        public override void OnDamage(int amount, Mobile from, bool willKill)
         {
+            if (Utility.RandomDouble() < 0.04)
+                SpillAcid(null, Utility.RandomMinMax(1, 3));
 
-            base.OnDeath(c);
-            Region reg = Region.Find(c.GetWorldLocation(), c.Map);
-            if (0.25 > Utility.RandomDouble() && reg.Name == "Passage of Tears")
-            {
-                if (Utility.RandomDouble() < 0.6)
-                    c.DropItem(new EssenceSingularity());
-
-            }
+            base.OnDamage(amount, from, willKill);
         }
-        // TODO: Acid Blood
 
-        /*
-        * Message: 1070820
-        * Spits pool of acid (blood, hue 0x3F), hits lost 6-10 per second/step
-        * Damage is resistable (physical)
-        * Acid last 10 seconds
-        */
+        public override Item NewHarmfulItem()
+        {
+            return new InfernalOoze(this, false, Utility.RandomMinMax(6, 10));
+        }
+
         public override int GetAngerSound()
         {
             return 0x581;

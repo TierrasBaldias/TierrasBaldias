@@ -3,7 +3,6 @@ using Server.Engines.Harvest;
 
 namespace Server.Items
 {
-    //Based Off Scythe
     [FlipableAttribute(0x48C4, 0x48C5)]
     public class GargishScythe : BasePoleArm
     {
@@ -11,7 +10,7 @@ namespace Server.Items
         public GargishScythe()
             : base(0x48C4)
         {
-            this.Weight = 5.0;
+            Weight = 5.0;
         }
 
         public GargishScythe(Serial serial)
@@ -141,11 +140,7 @@ namespace Server.Items
         public override void Deserialize(GenericReader reader)
         {
             base.Deserialize(reader);
-
             int version = reader.ReadInt();
-
-            if (this.Weight == 15.0)
-                this.Weight = 5.0;
         }
     }
 }

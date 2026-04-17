@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using Server.Targeting;
+using Server.Spells.SkillMasteries;
 
 namespace Server.Spells.Necromancy
 {
@@ -23,7 +24,7 @@ namespace Server.Spells.Necromancy
         {
             get
             {
-                return TimeSpan.FromSeconds(1.5);
+                return TimeSpan.FromSeconds(1.75);
             }
         }
         public override double RequiredSkill
@@ -83,43 +84,49 @@ namespace Server.Spells.Necromancy
 
         public override void OnCast()
         {
-            this.Caster.Target = new InternalTarget(this);
+            Caster.Target = new InternalTarget(this);
         }
 
         public void Target(Mobile m)
         {
             if (HasMindRotScalar(m))
             {
-                this.Caster.SendLocalizedMessage(1005559); // This spell is already in effect.
+                Caster.SendLocalizedMessage(1005559); // This spell is already in effect.
             }
-            else if (this.CheckHSequence(m))
+            else if (CheckHSequence(m))
             {
-                SpellHelper.Turn(this.Caster, m);
+                SpellHelper.Turn(Caster, m);
 
-                /* Attempts to place a curse on the Target that increases the mana cost of any spells they cast,
+                ApplyEffects(m);
+                ConduitSpell.CheckAffected(Caster, m, ApplyEffects);
+            }
+
+            FinishSequence();
+        }
+
+        public void ApplyEffects(Mobile m, double strength = 1.0)
+        {
+            /* Attempts to place a curse on the Target that increases the mana cost of any spells they cast,
                 * for a duration based off a comparison between the Caster's Spirit Speak skill and the Target's Resisting Spells skill.
                 * The effect lasts for ((Spirit Speak skill level - target's Resist Magic skill level) / 50 ) + 20 seconds.
                 */
 
-                if (m.Spell != null)
-                    m.Spell.OnCasterHurt();
-				
-                m.PlaySound(0x1FB);
-                m.PlaySound(0x258);
-                m.FixedParticles(0x373A, 1, 17, 9903, 15, 4, EffectLayer.Head);
+            if (m.Spell != null)
+                m.Spell.OnCasterHurt();
 
-                TimeSpan duration = TimeSpan.FromSeconds((((this.GetDamageSkill(this.Caster) - this.GetResistSkill(m)) / 5.0) + 20.0) * (m.Player ? 1.0 : 2.0));
-                m.CheckSkill(SkillName.MagicResist, 0.0, 120.0);	//Skill check for gain
+            m.PlaySound(0x1FB);
+            m.PlaySound(0x258);
+            m.FixedParticles(0x373A, 1, 17, 9903, 15, 4, EffectLayer.Head);
 
-                if (m.Player)
-                    SetMindRotScalar(this.Caster, m, 1.25, duration);
-                else
-                    SetMindRotScalar(this.Caster, m, 2.00, duration);
+            TimeSpan duration = TimeSpan.FromSeconds(((((GetDamageSkill(Caster) - GetResistSkill(m)) / 5.0) + 20.0) * (m.Player ? 1.0 : 2.0)) * strength);
+            m.CheckSkill(SkillName.MagicResist, 0.0, 120.0);	//Skill check for gain
 
-                this.HarmfulSpell(m);
-            }
+            if (m.Player)
+                SetMindRotScalar(Caster, m, 1.25 * strength, duration);
+            else
+                SetMindRotScalar(Caster, m, 2.00 * strength, duration);
 
-            this.FinishSequence();
+            HarmfulSpell(m);
         }
 
         private class InternalTarget : Target
@@ -128,20 +135,20 @@ namespace Server.Spells.Necromancy
             public InternalTarget(MindRotSpell owner)
                 : base(Core.ML ? 10 : 12, false, TargetFlags.Harmful)
             {
-                this.m_Owner = owner;
+                m_Owner = owner;
             }
 
             protected override void OnTarget(Mobile from, object o)
             {
                 if (o is Mobile)
-                    this.m_Owner.Target((Mobile)o);
+                    m_Owner.Target((Mobile)o);
                 else
                     from.SendLocalizedMessage(1060508); // You can't curse that.
             }
 
             protected override void OnTargetFinish(Mobile from)
             {
-                this.m_Owner.FinishSequence();
+                m_Owner.FinishSequence();
             }
         }
     }
@@ -154,28 +161,28 @@ namespace Server.Spells.Necromancy
         public MRExpireTimer(Mobile caster, Mobile target, TimeSpan delay)
             : base(TimeSpan.FromSeconds(1.0), TimeSpan.FromSeconds(1.0))
         {
-            this.m_Caster = caster;
-            this.m_Target = target;
-            this.m_End = DateTime.UtcNow + delay;
-            this.Priority = TimerPriority.TwoFiftyMS;
+            m_Caster = caster;
+            m_Target = target;
+            m_End = DateTime.UtcNow + delay;
+            Priority = TimerPriority.TwoFiftyMS;
         }
 
         public void RenewDelay(TimeSpan delay)
         {
-            this.m_End = DateTime.UtcNow + delay;
+            m_End = DateTime.UtcNow + delay;
         }
 
         public void Halt()
         {
-            this.Stop();
+            Stop();
         }
 
         protected override void OnTick()
         {
-            if (this.m_Target.Deleted || !this.m_Target.Alive || DateTime.UtcNow >= this.m_End)
+            if (m_Target.Deleted || !m_Target.Alive || DateTime.UtcNow >= m_End)
             {
-                MindRotSpell.ClearMindRotScalar(this.m_Target);
-                this.Stop();
+                MindRotSpell.ClearMindRotScalar(m_Target);
+                Stop();
             }
         }
     }
@@ -186,8 +193,8 @@ namespace Server.Spells.Necromancy
         public MRExpireTimer m_MRExpireTimer;
         public MRBucket(double theScalar, MRExpireTimer theTimer)
         {
-            this.m_Scalar = theScalar;
-            this.m_MRExpireTimer = theTimer;
+            m_Scalar = theScalar;
+            m_MRExpireTimer = theTimer;
         }
     }
 }

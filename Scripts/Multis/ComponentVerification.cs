@@ -1,9 +1,3 @@
-#region Header
-// **********
-// ServUO - ComponentVerification.cs
-// **********
-#endregion
-
 #region References
 using System.Collections.Generic;
 using System.IO;
@@ -14,7 +8,10 @@ namespace Server.Multis
 {
 	public class ComponentVerification
 	{
-		private readonly int[] m_ItemTable;
+        public int[] ItemTable { get { return m_ItemTable; } }
+        public int[] MultiTable { get { return m_MultiTable; } }
+
+        private readonly int[] m_ItemTable;
 		private readonly int[] m_MultiTable;
 
 		public ComponentVerification()

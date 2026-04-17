@@ -1,5 +1,6 @@
 using System;
 using Server.Targeting;
+using Server.Mobiles;
 
 namespace Server.Spells.Fourth
 {
@@ -32,47 +33,60 @@ namespace Server.Spells.Fourth
         }
         public override void OnCast()
         {
-            this.Caster.Target = new InternalTarget(this);
+            Caster.Target = new InternalTarget(this);
         }
 
-        public void Target(Mobile m)
+        public void Target(IDamageable m)
         {
-            if (!this.Caster.CanSee(m))
+            Mobile mob = m as Mobile;
+
+            if (!Caster.CanSee(m))
             {
-                this.Caster.SendLocalizedMessage(500237); // Target can not be seen.
+                Caster.SendLocalizedMessage(500237); // Target can not be seen.
             }
-            else if (this.CheckHSequence(m))
+            else if (CheckHSequence(m))
             {
-                SpellHelper.Turn(this.Caster, m);
+                Mobile source = Caster;
+                SpellHelper.Turn(Caster, m.Location);
 
-                SpellHelper.CheckReflect((int)this.Circle, this.Caster, ref m);
+                SpellHelper.CheckReflect((int)Circle, ref source, ref m);
 
-                double damage;
+                double damage = 0;
 
                 if (Core.AOS)
                 {
-                    damage = this.GetNewAosDamage(23, 1, 4, m);
+                    damage = GetNewAosDamage(23, 1, 4, m);
                 }
-                else
+                else if (mob != null)
                 {
                     damage = Utility.Random(12, 9);
 
-                    if (this.CheckResisted(m))
+                    if (CheckResisted(mob))
                     {
                         damage *= 0.75;
 
-                        m.SendLocalizedMessage(501783); // You feel yourself resisting magical energy.
+                        mob.SendLocalizedMessage(501783); // You feel yourself resisting magical energy.
                     }
 
-                    damage *= this.GetDamageScalar(m);
+                    damage *= GetDamageScalar(mob);
                 }
 
-                m.BoltEffect(0);
+                if (m is Mobile)
+                {
+                    Effects.SendBoltEffect(m, true, 0, false);
+                }
+                else
+                {
+                    Effects.SendBoltEffect(EffectMobile.Create(m.Location, m.Map, EffectMobile.DefaultDuration), true, 0, false);
+                }
 
-                SpellHelper.Damage(this, m, damage, 0, 0, 0, 0, 100);
+                if (damage > 0)
+                {
+                    SpellHelper.Damage(this, m, damage, 0, 0, 0, 0, 100);
+                }
             }
 
-            this.FinishSequence();
+            FinishSequence();
         }
 
         private class InternalTarget : Target
@@ -81,18 +95,18 @@ namespace Server.Spells.Fourth
             public InternalTarget(LightningSpell owner)
                 : base(Core.ML ? 10 : 12, false, TargetFlags.Harmful)
             {
-                this.m_Owner = owner;
+                m_Owner = owner;
             }
 
             protected override void OnTarget(Mobile from, object o)
             {
-                if (o is Mobile)
-                    this.m_Owner.Target((Mobile)o);
+                if (o is IDamageable)
+                    m_Owner.Target((IDamageable)o);
             }
 
             protected override void OnTargetFinish(Mobile from)
             {
-                this.m_Owner.FinishSequence();
+                m_Owner.FinishSequence();
             }
         }
     }

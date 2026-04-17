@@ -35,7 +35,7 @@ namespace Server.Spells.Seventh
             this.Caster.Target = new InternalTarget(this);
         }
 
-        public void Target(Mobile m)
+        public void Target(IDamageable m)
         {
             if (!this.Caster.CanSee(m))
             {
@@ -45,32 +45,40 @@ namespace Server.Spells.Seventh
             {
                 SpellHelper.Turn(this.Caster, m);
 
-                SpellHelper.CheckReflect((int)this.Circle, this.Caster, ref m);
+                Mobile source = this.Caster;
 
-                double damage;
+                SpellHelper.CheckReflect((int)this.Circle, ref source, ref m);
+
+                double damage = 0;
 
                 if (Core.AOS)
                 {
-                    damage = this.GetNewAosDamage(48, 1, 5, m);
+                    damage = GetNewAosDamage(48, 1, 5, m);
                 }
-                else
+                else if (m is Mobile)
                 {
                     damage = Utility.Random(27, 22);
 
-                    if (this.CheckResisted(m))
+                    if (this.CheckResisted((Mobile)m))
                     {
                         damage *= 0.6;
 
-                        m.SendLocalizedMessage(501783); // You feel yourself resisting magical energy.
+                        ((Mobile)m).SendLocalizedMessage(501783); // You feel yourself resisting magical energy.
                     }
 
-                    damage *= this.GetDamageScalar(m);
+                    damage *= this.GetDamageScalar((Mobile)m);
                 }
 
-                m.FixedParticles(0x3709, 10, 30, 5052, EffectLayer.LeftFoot);
-                m.PlaySound(0x208);
+                if (m != null)
+                {
+                    m.FixedParticles(0x3709, 10, 30, 5052, EffectLayer.LeftFoot);
+                    m.PlaySound(0x208);
+                }
 
-                SpellHelper.Damage(this, m, damage, 0, 100, 0, 0, 0);
+                if (damage > 0)
+                {
+                    SpellHelper.Damage(this, m, damage, 0, 100, 0, 0, 0);
+                }
             }
 
             this.FinishSequence();
@@ -87,9 +95,9 @@ namespace Server.Spells.Seventh
 
             protected override void OnTarget(Mobile from, object o)
             {
-                if (o is Mobile)
+                if (o is IDamageable)
                 {
-                    this.m_Owner.Target((Mobile)o);
+                    this.m_Owner.Target((IDamageable)o);
                 }
             }
 

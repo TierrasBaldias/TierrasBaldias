@@ -19,7 +19,7 @@ namespace Server.Spells.Necromancy
         {
             get
             {
-                return TimeSpan.FromSeconds(2.0);
+                return TimeSpan.FromSeconds(2.25);
             }
         }
         public override double RequiredSkill
@@ -48,13 +48,17 @@ namespace Server.Spells.Necromancy
             m.PlaySound(0x165);
             m.FixedParticles(0x3728, 1, 13, 9918, 92, 3, EffectLayer.Head);
 
+            BuffInfo.AddBuff(m, new BuffInfo(BuffIcon.HorrificBeast, 1060514, 1153763, "20\t25"));
+
             m.Delta(MobileDelta.WeaponDamage);
-            m.CheckStatTimers();
+
+            m.ResetStatTimers();
         }
 
         public override void RemoveEffect(Mobile m)
         {
             m.Delta(MobileDelta.WeaponDamage);
+            BuffInfo.RemoveBuff(m, BuffIcon.HorrificBeast);
         }
     }
 }

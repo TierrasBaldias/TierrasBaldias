@@ -1,23 +1,22 @@
 using System;
 using Server.Items;
 using Server.Network;
-//
-//
-
-//
 
 namespace Server.Mobiles
 {
     [CorpseName("a kepetch corpse")]
     public class KepetchAmbusher : BaseCreature, ICarvable
     {
-        private DateTime m_NextWoolTime;
+        public override bool CanStealth { get { return true; } } //Stays Hidden until Combatant in range.
+        public bool GatheredFur { get; set; }
 
         [Constructable]
-        public KepetchAmbusher() : base(AIType.AI_Animal, FightMode.Aggressor, 10, 1, 0.2, 0.4)
+        public KepetchAmbusher()
+            : base(AIType.AI_Melee, FightMode.Closest, 10, 1, 0.2, 0.4)
         {
             Name = "a kepetch ambusher";
             Body = 726;
+            Hidden = true;
 
             SetStr(440, 446);
             SetDex(229, 254);
@@ -43,29 +42,53 @@ namespace Server.Mobiles
             SetSkill(SkillName.Stealth, 125.0);
             SetSkill(SkillName.Hiding, 125.0);
 
-            PackItem(new DragonBlood(6));
-
             Fame = 2500;
             Karma = -2500;
 
-            QLPoints = 25;
-
+            PackItem(new RawRibs(5));
             //	VirtualArmor = 16;
         }
 
-        public KepetchAmbusher(Serial serial) : base(serial)
+        public bool Carve(Mobile from, Item item)
+        {
+            if (!GatheredFur)
+            {
+                var fur = new Fur(FurType, Fur);
+
+                if (from.Backpack == null || !from.Backpack.TryDropItem(from, fur, false))
+                {
+                    from.SendLocalizedMessage(1112359); // You would not be able to place the gathered kepetch fur in your backpack!
+                    fur.Delete();
+                }
+                else
+                {
+                    from.SendLocalizedMessage(1112360); // You place the gathered kepetch fur into your backpack.
+                    GatheredFur = true;
+                    return true;
+                }
+            }
+            else
+                from.SendLocalizedMessage(1112358); // The Kepetch nimbly escapes your attempts to shear its mane.
+
+            return false;
+        }
+
+        public KepetchAmbusher(Serial serial)
+            : base(serial)
         {
         }
 
-        [CommandProperty(AccessLevel.GameMaster)]
-        public DateTime NextWoolTime
+        //Can Flush them out of Hiding
+        public override void OnDamage(int amount, Mobile from, bool willKill)
         {
-            get { return m_NextWoolTime; }
-            set
-            {
-                m_NextWoolTime = value;
-                Body = (DateTime.Now >= m_NextWoolTime) ? 0x2D6 : 0x2D7;
-            }
+            RevealingAction();
+            base.OnDamage(amount, from, willKill);
+        }
+
+        public override void OnDamagedBySpell(Mobile from)
+        {
+            RevealingAction();
+            base.OnDamagedBySpell(from);
         }
 
         public override int Meat
@@ -75,10 +98,9 @@ namespace Server.Mobiles
 
         public override int Hides
         {
-            get { return 14; }
+            get { return 12; }
         }
 
-        // public override int DragonBlood { get { return 6; } }
         public override HideType HideType
         {
             get { return HideType.Horned; }
@@ -89,37 +111,10 @@ namespace Server.Mobiles
             get { return FoodType.FruitsAndVegies | FoodType.GrainsAndHay; }
         }
 
-        public override int Wool
-        {
-            get { return (Body == 0x2D6 ? 3 : 0); }
-        }
+        public override int DragonBlood { get { return 8; } }
 
-        public void Carve(Mobile from, Item item)
-        {
-            if (DateTime.Now < m_NextWoolTime)
-            {
-                // The Kepetch nimbly escapes your attempts to shear its mane.
-                PrivateOverheadMessage(MessageType.Regular, 0x3B2, 1112358, from.NetState);
-                return;
-            }
-
-            from.SendLocalizedMessage(1112360); // You place the gathered kepetch fur into your backpack.
-            //from.AddToBackpack( new FurO( Map == Map.Felucca ? 2 : 15 ) );
-            from.AddToBackpack(new Fur(Map == Map.Felucca ? 2 : 15));
-
-            NextWoolTime = DateTime.Now + TimeSpan.FromHours(3.0); // TODO: Proper time delay
-        }
-
-        public override WeaponAbility GetWeaponAbility()
-        {
-            return WeaponAbility.ShadowStrike;
-        }
-
-        public override void OnThink()
-        {
-            base.OnThink();
-            Body = (DateTime.Now >= m_NextWoolTime) ? 0x2D6 : 0x2D7;
-        }
+        public override int Fur { get { return GatheredFur ? 0 : 15; } }
+        public override FurType FurType { get { return FurType.Brown; } }
 
         public override void GenerateLoot()
         {
@@ -156,12 +151,56 @@ namespace Server.Mobiles
             }
         }
 
+        public override void OnThink()
+        {
+
+            if (!this.Alive || this.Deleted)
+            {
+                return;
+            }
+
+            if (!this.Hidden)
+            {
+                double chance = 0.05;
+
+                if (this.Hits < 20)
+                {
+                    chance = 0.1;
+                }
+
+                if (this.Poisoned)
+                {
+                    chance = 0.01;
+                }
+
+                if (Utility.RandomDouble() < chance)
+                {
+                    HideSelf();
+                }
+                base.OnThink();
+            }
+        }
+
+        private void HideSelf()
+        {
+            if (Core.TickCount >= this.NextSkillTime)
+            {
+                Effects.SendLocationParticles(
+                    EffectItem.Create(this.Location, this.Map, EffectItem.DefaultDuration), 0x3728, 10, 10, 2023);
+
+                this.PlaySound(0x22F);
+                this.Hidden = true;
+
+                this.UseSkill(SkillName.Stealth);
+            }
+        }
+
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);
 
-            writer.Write(1); //0
-            writer.WriteDeltaTime(m_NextWoolTime);
+            writer.Write(2);
+            writer.Write(GatheredFur);
         }
 
         public override void Deserialize(GenericReader reader)
@@ -169,14 +208,10 @@ namespace Server.Mobiles
             base.Deserialize(reader);
             var version = reader.ReadInt();
 
-            switch (version)
-            {
-                case 1:
-                {
-                    NextWoolTime = reader.ReadDeltaTime();
-                    break;
-                }
-            }
+            if (version == 1)
+                reader.ReadDeltaTime();
+            else
+                GatheredFur = reader.ReadBool();
         }
     }
 }

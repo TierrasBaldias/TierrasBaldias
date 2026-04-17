@@ -1,7 +1,9 @@
 using System;
+using Server.Engines.Craft;
 
 namespace Server.Items
 {
+    [Alterable(typeof(DefBlacksmithy), typeof(GargishButcherKnife))]
     [FlipableAttribute(0x13F6, 0x13F7)]
     public class ButcherKnife : BaseKnife
     {
@@ -35,7 +37,7 @@ namespace Server.Items
         {
             get
             {
-                return 5;
+                return 10;
             }
         }
         public override int AosMinDamage

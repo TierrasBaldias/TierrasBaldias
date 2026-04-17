@@ -10,6 +10,7 @@ namespace Server.Mobiles
         {
             Name = "a toxic slith";
             Body = 734;
+            Hue = 476;
 
             SetStr(223, 306);
             SetDex(231, 258);
@@ -31,24 +32,16 @@ namespace Server.Mobiles
             SetSkill(SkillName.MagicResist, 95.4, 98.3);
             SetSkill(SkillName.Tactics, 85.5, 90.9);
             SetSkill(SkillName.Wrestling, 90.4, 95.1);
+            SetSkill(SkillName.Poisoning, 90.0, 110.0);
 
-            PackItem(new DragonBlood(6));
-
-            Tamable = false;
-            ControlSlots = 1;
-            MinTameSkill = 80.7;
-
-            QLPoints = 30;
+            SetSpecialAbility(SpecialAbility.DragonBreath);
         }
+
+        public override int DragonBlood { get { return 6; } }
 
         public ToxicSlith(Serial serial) : base(serial)
         {
         }
-
-        public override bool HasBreath
-        {
-            get { return true; }
-        } // fire breath enabled
 
         public override int Meat
         {
@@ -77,13 +70,10 @@ namespace Server.Mobiles
 
             if (Utility.RandomDouble() < 0.05)
             {
-                switch (Utility.Random(3))
+                switch (Utility.Random(2))
                 {
                     case 0:
                         c.DropItem(new ToxicVenomSac());
-                        break;
-                    case 1:
-                        c.DropItem(new SlithTongue());
                         break;
                     case 2:
                         c.DropItem(new SlithEye());
@@ -106,13 +96,18 @@ namespace Server.Mobiles
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);
-            writer.Write(0);
+            writer.Write(1);
         }
 
         public override void Deserialize(GenericReader reader)
         {
             base.Deserialize(reader);
             var version = reader.ReadInt();
+
+            if (version == 0)
+            {
+                Hue = 476;
+            }
         }
     }
 }

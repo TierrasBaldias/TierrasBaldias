@@ -1,5 +1,9 @@
 using System;
+using System.Collections.Generic;
+
 using Server.Items;
+using Server.Spells;
+using Server.Spells.Spellweaving;
 
 namespace Server.Mobiles
 {
@@ -10,42 +14,42 @@ namespace Server.Mobiles
         public TanglingRoots()
             : base(AIType.AI_Melee, FightMode.Closest, 10, 1, 0.2, 0.4)
         {
-            this.Name = "a tangling root";
-            this.Body = 743;
-            this.BaseSoundID = 684;
+            Name = "a tangling root";
+            Body = 8;
+            BaseSoundID = 684;
 
-            this.SetStr(150, 157);
-            this.SetDex(55, 60);
-            this.SetInt(30, 35);
+            SetStr(157, 189);
+            SetDex(51, 64);
+            SetInt(26, 39);
 
-            this.SetHits(200, 232);
-            this.SetStam(55, 60);
+            SetHits(231, 246);
+            SetMana(0);
 
-            this.SetDamage(10, 23);
+            SetDamage(10, 23);
 
-            this.SetDamageType(ResistanceType.Physical, 60);
-            this.SetDamageType(ResistanceType.Poison, 40);
+            SetDamageType(ResistanceType.Physical, 60);
+            SetDamageType(ResistanceType.Poison, 40);
 
-            this.SetResistance(ResistanceType.Physical, 15, 20);
-            this.SetResistance(ResistanceType.Fire, 15, 25);
-            this.SetResistance(ResistanceType.Cold, 10, 20);
-            this.SetResistance(ResistanceType.Poison, 20, 30);
+            SetResistance(ResistanceType.Physical, 35, 40);
+            SetResistance(ResistanceType.Cold, 10, 20);
+            SetResistance(ResistanceType.Poison, 100);
+            SetResistance(ResistanceType.Energy, 10, 20);
 
-            this.SetSkill(SkillName.MagicResist, 15.1, 18.5);
-            this.SetSkill(SkillName.Tactics, 45.1, 59.5);
-            this.SetSkill(SkillName.Wrestling, 45.1, 60.0);
+            SetSkill(SkillName.MagicResist, 15.1, 20.0);
+            SetSkill(SkillName.Tactics, 45.1, 60.0);
+            SetSkill(SkillName.Wrestling, 45.1, 60.0);
 
-            this.Fame = 1000;
-            this.Karma = -1000;
+            Fame = 3000;
+            Karma = -3000;
 
-            this.VirtualArmor = 18;
+            VirtualArmor = 18;
 
             if (0.25 > Utility.RandomDouble())
-                this.PackItem(new Board(10));
+                PackItem(new Board(10));
             else
-                this.PackItem(new Log(10));
+                PackItem(new Log(10));
 
-            this.PackItem(new MandrakeRoot(3));
+            PackItem(new MandrakeRoot(3));
         }
 
         public TanglingRoots(Serial serial)
@@ -53,30 +57,78 @@ namespace Server.Mobiles
         {
         }
 
-        public override Poison PoisonImmune
+        public override Poison PoisonImmune { get { return Poison.Lesser; } }
+        public override bool DisallowAllMoves { get { return true; } }
+        public override OppositionGroup OppositionGroup { get { return OppositionGroup.FeyAndUndead; } }
+
+        private static List<Mobile> m_TangleCooldown = new List<Mobile>();
+        private Dictionary<Mobile, Timer> m_DamageTable = new Dictionary<Mobile, Timer>();
+
+        public override void OnMovement(Mobile m, Point3D oldLocation)
         {
-            get
+            if (m.Alive && !m.IsDeadBondedPet && m.AccessLevel == AccessLevel.Player && !m.Hidden && !TransformationSpellHelper.UnderTransformation(m, typeof(EtherealVoyageSpell)))
             {
-                return Poison.Lesser;
+                if (0.2 > Utility.RandomDouble() && !m_TangleCooldown.Contains(m) && InRange(m, 6) && !FountainOfFortune.UnderProtection(m))
+                {
+                    m.Frozen = true;
+                    m.MoveToWorld(Location, Map);
+
+                    m.PlaySound(0x1FE);
+                    m.SendLocalizedMessage(1111641); // You become entangled in the acid drenched roots.
+
+                    m_TangleCooldown.Add(m);
+
+                    Timer.DelayCall(TimeSpan.FromSeconds(Utility.RandomMinMax(3, 6)), new TimerStateCallback<Mobile>(Untangle), m);
+                    Timer.DelayCall(TimeSpan.FromSeconds(15.0), new TimerStateCallback<Mobile>(RemoveCooldown), m);
+                }
+
+                if (m.InRange(this, 1) && !m_DamageTable.ContainsKey(m))
+                {
+                    // Should start the timer
+                    m_DamageTable[m] = Timer.DelayCall(TimeSpan.Zero, TimeSpan.FromSeconds(1.0), new TimerStateCallback<Mobile>(DoDamage), m);
+                }
             }
         }
-        public override bool DisallowAllMoves
+
+        protected void Untangle(Mobile m)
         {
-            get
+            m.Frozen = false;
+            m.SendLocalizedMessage(1111642); // You manage to untangle yourself.
+        }
+
+        protected void RemoveCooldown(Mobile m)
+        {
+            if (m_TangleCooldown.Contains(m))
+                m_TangleCooldown.Remove(m);
+        }
+
+        protected void DoDamage(Mobile m)
+        {
+            if (m.Alive && !m.IsDeadBondedPet && !Deleted && m.InRange(this, 1))
             {
-                return true;
+                m.Damage(4, this);
+                m.SendLocalizedMessage(1111643); // The acid is damaging you!
+            }
+            else
+            {
+                Timer t = m_DamageTable[m];
+                t.Stop();
+
+                m_DamageTable.Remove(m);
             }
         }
-        public override OppositionGroup OppositionGroup
+
+        public override void OnDeath(Container c)
         {
-            get
-            {
-                return OppositionGroup.FeyAndUndead;
-            }
+            base.OnDeath(c);
+
+            if (Utility.RandomDouble() < 0.02)
+                c.DropItem(new LuckyCoin());
         }
+
         public override void GenerateLoot()
         {
-            this.AddLoot(LootPack.Meager);
+            AddLoot(LootPack.FilthyRich);
         }
 
         public override void Serialize(GenericWriter writer)
@@ -88,10 +140,8 @@ namespace Server.Mobiles
         public override void Deserialize(GenericReader reader)
         {
             base.Deserialize(reader);
-            int version = reader.ReadInt();
 
-            if (this.BaseSoundID == 352)
-                this.BaseSoundID = 684;
+            int version = reader.ReadInt();
         }
     }
 }

@@ -8,11 +8,11 @@ namespace Server.Mobiles
     {
         [Constructable]
         public WolfSpider()
-            : base(AIType.AI_Melee, FightMode.Evil, 10, 1, 0.2, 0.4)
+            : base(AIType.AI_Melee, FightMode.Closest, 10, 1, 0.2, 0.4)
         {
             Name = "a Wolf spider";
-            Body = 737;
-            Hue = 1141;
+            Body = 736;
+            Hue = 0;
 
             SetStr(225, 268);
             SetDex(145, 165);
@@ -44,8 +44,6 @@ namespace Server.Mobiles
             Tamable = true;
             ControlSlots = 2;
             MinTameSkill = 59.1;
-
-            QLPoints = 5;
         }
 
         public WolfSpider(Serial serial)
@@ -92,8 +90,8 @@ namespace Server.Mobiles
         {
             base.OnDeath(c);
 
-            if (Utility.RandomDouble() < 0.15)
-                c.DropItem(new BottleIchor());
+            if (!Controlled && Utility.RandomDouble() < 0.01)
+                c.DropItem(new LuckyCoin());
         }
 
         public override int GetIdleSound()
@@ -119,13 +117,24 @@ namespace Server.Mobiles
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);
-            writer.Write((int)0);
+            writer.Write((int)2);
         }
 
         public override void Deserialize(GenericReader reader)
         {
             base.Deserialize(reader);
             int version = reader.ReadInt();
+
+            if (version == 0)
+            {
+                Hue = 0;
+                Body = 736;
+            }
+
+            if (version == 1 && (AbilityProfile == null || AbilityProfile.MagicalAbility == MagicalAbility.None))
+            {
+                SetMagicalAbility(MagicalAbility.Poisoning);
+            }
         }
     }
 }

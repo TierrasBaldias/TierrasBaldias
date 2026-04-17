@@ -1,37 +1,17 @@
 /*
-GMEthereal.cs
-Version 1.2 [RunUO 2.0]
 snicker7
 Released: 03/26/06
-Updated: 11/08/06
-Description:
-Single item that can function as any type of mount
-currently in the game. Only usable by counselors and
-above. The item self-deletes should a player try to use
-it.
-
-Use the [props command to change the type of
-EtherealMount you would like to use. Also functions
-as a functional ethereal seahorse if that option is
-selected.
-
-The GMEthereal has no mount time and you will mount
-immediately. This does not affect any other Ethereals
-in the game.
-
-To install, drop in your custom folder and do:
-[add GMEthereal [EtherealType]
-Where "EtherealType" is optional and can be any
-of the types listed below.
 */
-
 using System;
+
 using CustomsFramework;
 
 namespace Server.Mobiles
 {
     public class GMEthereal : EtherealMount
     {
+		public override int FollowerSlots { get { return 0; } }
+		
         private static readonly EtherealInfo[] EthyItemTypes = new EtherealInfo[]
         {
             new EtherealInfo(0x20DD, 0x3EAA), //Horse
@@ -51,7 +31,6 @@ namespace Server.Mobiles
             new EtherealInfo(11669, 16016), //Chimera
             new EtherealInfo(11670, 16017), //CuSidhe
             new EtherealInfo(8417, 16069), //PolarBear
-            new EtherealInfo(8403, 16239), //Daemon
             new EtherealInfo(0x46f8, 0x3EC6)
         };
         private EtherealTypes m_EthyType;
@@ -63,11 +42,11 @@ namespace Server.Mobiles
 
         [Constructable]
         public GMEthereal(EtherealTypes type)
-            : base(0,0)
+            : base(0,0,0)
         {
-            this.EthyType = type;
-            this.LootType = LootType.Blessed;
-            this.Hue = 2406;
+            EthyType = type;
+            LootType = LootType.Blessed;
+			Name = "Staff Ethereal Steed";
         }
 
         public GMEthereal(Serial serial)
@@ -94,76 +73,67 @@ namespace Server.Mobiles
             Chimera,
             CuSidhe,
             PolarBear,
-            Daemon,
             Boura
         }
+		
         [CommandProperty(AccessLevel.Counselor)]
         public EtherealTypes EthyType
         {
             get
             {
-                return this.m_EthyType;
+                return m_EthyType;
             }
             set
             {
                 if ((int)value > EthyItemTypes.Length)
                     return;
-                this.m_EthyType = value;
-                this.MountedID = EthyItemTypes[(int)value].MountedID;
-                this.RegularID = EthyItemTypes[(int)value].RegularID;
+                m_EthyType = value;
+
+                TransparentMountedID = EthyItemTypes[(int)value].MountedID;
+                NonTransparentMountedID = TransparentMountedID;
+                StatueID = EthyItemTypes[(int)value].RegularID;
             }
-        }
-        public override string DefaultName
-        {
-            get
-            {
-                return "A GM's Ethereal Mount";
-            }
-        }
-        public override int FollowerSlots
-        {
-            get
-            {
-                return 0;
-            }
-        }
+        }    
+        
         public override void OnDoubleClick(Mobile from)
         {
             if (Utilities.IsStaff(from))
             {
                 if (from.Mounted)
                     from.SendLocalizedMessage(1005583); // Please dismount first.
+				else if (from.Race == Race.Gargoyle)
+					from.SendLocalizedMessage(1112281); // gargs can't mount
                 else if (from.HasTrade)
                     from.SendLocalizedMessage(1042317, "", 0x41); // You may not ride at this time
                 else if (Multis.DesignContext.Check(from))
                 {
-                    if (!this.Deleted && this.Rider == null && this.IsChildOf(from.Backpack))
+                    if (!Deleted && Rider == null && IsChildOf(from.Backpack))
                     {
-                        this.Rider = from;
-                        if (this.MountedID == 16051)
-                            this.Rider.CanSwim = true;
+                        Rider = from;
+                        if (MountedID == 16051)
+                            Rider.CanSwim = true;
                     }
                 }
             }
             else
             {
-                from.SendMessage("Players cannot ride this. Sorry, BALEETED!");
-                this.Delete();
+                from.SendMessage("This item is to only be used by staff members."); 
+                Delete();
             }
         }
 
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);
-            writer.Write((int)0); // version
-            writer.Write((int)this.m_EthyType);
+            writer.Write((int)1); // version
+            writer.Write((int)m_EthyType);
         }
 
         public override void Deserialize(GenericReader reader)
         {
             base.Deserialize(reader);
             int version = reader.ReadInt();
-            this.m_EthyType = (EtherealTypes)reader.ReadInt();
+            EthyType = (EtherealTypes)reader.ReadInt();           
         }
 
         public struct EtherealInfo
@@ -172,8 +142,8 @@ namespace Server.Mobiles
             public int MountedID;
             public EtherealInfo(int id, int mid)
             {
-                this.RegularID = id;
-                this.MountedID = mid;
+                RegularID = id;
+                MountedID = mid;
             }
         }
     }
@@ -181,7 +151,7 @@ namespace Server.Mobiles
     public class GMEthVirtual : EtherealMount
     {
         public GMEthVirtual(int id, int mid)
-            : base(id, mid)
+            : base(id, mid, 0)
         {
         }
 
@@ -198,7 +168,7 @@ namespace Server.Mobiles
         public override void Deserialize(GenericReader reader)
         {
             base.Deserialize(reader);
-            this.Delete();
+            Delete();
         }
     }
 }

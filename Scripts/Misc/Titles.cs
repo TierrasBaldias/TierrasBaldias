@@ -3,41 +3,45 @@ using System.Text;
 using Server.Engines.CannedEvil;
 using Server.Items;
 using Server.Mobiles;
+using System.Collections.Generic;
+using Server.Accounting;
 
 namespace Server.Misc
 {
     public class Titles
     {
         public const int MinFame = 0;
-        public const int MaxFame = 15000;
+        public const int MaxFame = 32000;
 
         public static void AwardFame(Mobile m, int offset, bool message)
         {
+            var fame = m.Fame;
+
             if (offset > 0)
             {
-                if (m.Fame >= MaxFame)
+                if (fame >= MaxFame)
                     return;
 
-                offset -= m.Fame / 100;
+                offset -= fame / 100;
 
                 if (offset < 0)
                     offset = 0;
             }
             else if (offset < 0)
             {
-                if (m.Fame <= MinFame)
+                if (fame <= MinFame)
                     return;
 
-                offset -= m.Fame / 100;
+                offset -= fame / 100;
 
                 if (offset > 0)
                     offset = 0;
             }
 
-            if ((m.Fame + offset) > MaxFame)
-                offset = MaxFame - m.Fame;
-            else if ((m.Fame + offset) < MinFame)
-                offset = MinFame - m.Fame;
+            if ((fame + offset) > MaxFame)
+                offset = MaxFame - fame;
+            else if ((fame + offset) < MinFame)
+                offset = MinFame - fame;
 
             m.Fame += offset;
 
@@ -62,12 +66,13 @@ namespace Server.Misc
             }
         }
 
-        public const int MinKarma = -15000;
-        public const int MaxKarma = 15000;
+        public const int MinKarma = -32000;
+        public const int MaxKarma = 32000;
 
         public static void AwardKarma(Mobile m, int offset, bool message)
         {
-            #region Mondain's Legacy
+            var karma = m.Karma;
+
             if (m.Talisman is BaseTalisman)
             {
                 BaseTalisman talisman = (BaseTalisman)m.Talisman;
@@ -77,47 +82,44 @@ namespace Server.Misc
                 else if (talisman.KarmaLoss < 0)
                     offset *= (1 - (int)(((double)-talisman.KarmaLoss) / 100));
             }
-            #endregion
 
-            #region Heritage Items
             int karmaLoss = AosAttributes.GetValue(m, AosAttribute.IncreasedKarmaLoss);
 
             if (karmaLoss != 0 && offset < 0)
             {
                 offset -= (int)(offset * (karmaLoss / 100.0));
             }
-            #endregion
 
             if (offset > 0)
             {
                 if (m is PlayerMobile && ((PlayerMobile)m).KarmaLocked)
                     return;
 
-                if (m.Karma >= MaxKarma)
+                if (karma >= MaxKarma)
                     return;
 
-                offset -= m.Karma / 100;
+                offset -= karma / 100;
 
                 if (offset < 0)
                     offset = 0;
             }
             else if (offset < 0)
             {
-                if (m.Karma <= MinKarma)
+                if (karma <= MinKarma)
                     return;
 
-                offset -= m.Karma / 100;
+                offset -= karma / 100;
 
                 if (offset > 0)
                     offset = 0;
             }
 
-            if ((m.Karma + offset) > MaxKarma)
-                offset = MaxKarma - m.Karma;
-            else if ((m.Karma + offset) < MinKarma)
-                offset = MinKarma - m.Karma;
+            if ((karma + offset) > MaxKarma)
+                offset = MaxKarma - karma;
+            else if ((karma + offset) < MinKarma)
+                offset = MinKarma - karma;
 
-            bool wasPositiveKarma = (m.Karma >= 0);
+            bool wasPositiveKarma = (karma >= 0);
 
             m.Karma += offset;
 
@@ -146,6 +148,36 @@ namespace Server.Misc
                 ((PlayerMobile)m).KarmaLocked = true;
                 m.SendLocalizedMessage(1042511, "", 0x22); // Karma is locked.  A mantra spoken at a shrine will unlock it again.
             }
+        }
+
+        public static List<string> GetFameKarmaEntries(Mobile m)
+        {
+            List<string> list = new List<string>();
+            int fame = m.Fame;
+            int karma = m.Karma;
+
+            for (int i = 0; i < m_FameEntries.Length; ++i)
+            {
+                FameEntry fe = m_FameEntries[i];
+
+                if (fame >= fe.m_Fame)
+                {
+                    KarmaEntry[] karmaEntries = fe.m_Karma;
+
+                    for (int j = 0; j < karmaEntries.Length; ++j)
+                    {
+                        KarmaEntry ke = karmaEntries[j];
+                        StringBuilder title = new StringBuilder();
+
+                        if ((karma >= 0 && ke.m_Karma >= 0 && karma >= ke.m_Karma) || (karma < 0 && ke.m_Karma < 0 && karma < ke.m_Karma))
+                        {
+                            list.Add(title.AppendFormat(ke.m_Title, m.Name, m.Female ? "Lady" : "Lord").ToString());
+                        }
+                    }
+                }
+            }
+
+            return list;
         }
 
         public static string[] HarrowerTitles = new string[] { "Spite", "Opponent", "Hunter", "Venom", "Executioner", "Annihilator", "Champion", "Assailant", "Purifier", "Nullifier" };
@@ -185,7 +217,11 @@ namespace Server.Misc
 
             bool showSkillTitle = beheld.ShowFameTitle && ((beholder == beheld) || (beheld.Fame >= 5000));
 
-			if (beheld.ShowFameTitle || (beholder == beheld))
+            if (Core.SA && beheld.ShowFameTitle && beheld is PlayerMobile && ((PlayerMobile)beheld).FameKarmaTitle != null)
+            {
+                title.AppendFormat(((PlayerMobile)beheld).FameKarmaTitle, beheld.Name, beheld.Female ? "Lady" : "Lord");
+            }
+			else if (beheld.ShowFameTitle || (beholder == beheld))
             {
                 title.Append(ComputeFameTitle(beheld));
             }
@@ -198,7 +234,12 @@ namespace Server.Misc
             {
                 PlayerMobile.ChampionTitleInfo info = ((PlayerMobile)beheld).ChampionTitles;
 
-                if (info.Harrower > 0)
+                if (Core.SA)
+                {
+                    if (((PlayerMobile)beheld).CurrentChampTitle != null)
+                        title.AppendFormat(((PlayerMobile)beheld).CurrentChampTitle);
+                }
+				else if (info.Harrower > 0)
                     title.AppendFormat(": {0} of Evil", HarrowerTitles[Math.Min(HarrowerTitles.Length, info.Harrower) - 1]);
                 else
                 {
@@ -230,7 +271,14 @@ namespace Server.Misc
 
             string customTitle = beheld.Title;
 
-            if (customTitle != null && (customTitle = customTitle.Trim()).Length > 0)
+            if (Core.SA)
+            {
+                if (beheld is PlayerMobile && ((PlayerMobile)beheld).PaperdollSkillTitle != null)
+                    title.Append(", ").Append(((PlayerMobile)beheld).PaperdollSkillTitle);
+                else if (beheld is BaseVendor) 
+					title.AppendFormat(" {0}", customTitle);
+            }
+            else if (customTitle != null && (customTitle = customTitle.Trim()).Length > 0)
             {
                 title.AppendFormat(" {0}", customTitle);
             }
@@ -255,6 +303,22 @@ namespace Server.Misc
             {
                 string skillLevel = GetSkillLevel(highest);
                 string skillTitle = highest.Info.Title;
+
+                if (mob.Female && skillTitle.EndsWith("man"))
+                    skillTitle = skillTitle.Substring(0, skillTitle.Length - 3) + "woman";
+
+                return String.Concat(skillLevel, " ", skillTitle);
+            }
+
+            return null;
+        }
+
+        public static string GetSkillTitle(Mobile mob, Skill skill)
+        {
+            if (skill != null && skill.BaseFixedPoint >= 300)
+            {
+                string skillLevel = GetSkillLevel(skill);
+                string skillTitle = skill.Info.Title;
 
                 if (mob.Female && skillTitle.EndsWith("man"))
                     skillTitle = skillTitle.Substring(0, skillTitle.Length - 3) + "woman";
@@ -321,7 +385,9 @@ namespace Server.Misc
 
         private static int GetTableIndex(Skill skill)
         {
-            int fp = Math.Min(skill.BaseFixedPoint, 1200);
+            int fp = skill == null ? 300 : skill.BaseFixedPoint;
+
+            fp = Math.Min(fp, 1200);
 
             return (fp - 300) / 100;
         }
@@ -399,6 +465,42 @@ namespace Server.Misc
                 new KarmaEntry(10000, "The Glorious {1} {0}")
             })
         };
+
+        public static VeteranTitle[] VeteranTitles { get; set; }
+
+        public static void Initialize()
+        {
+            VeteranTitles = new VeteranTitle[9];
+
+            for (int i = 0; i < 9; i++)
+            {
+                VeteranTitles[i] = new VeteranTitle(1154341 + i, 2 * (i + 1));
+            }
+        }
+
+        public static List<VeteranTitle> GetVeteranTitles(Mobile m)
+        {
+            Account a = m.Account as Account;
+
+            if (a == null)
+                return null;
+
+            int years = (int)(DateTime.UtcNow - a.Created).TotalDays;
+            years /= 365;
+
+            if (years < 2)
+                return null;
+
+            List<VeteranTitle> titles = new List<VeteranTitle>();
+
+            foreach (VeteranTitle title in VeteranTitles)
+            {
+                if (years >= title.Years)
+                    titles.Add(title);
+            }
+
+            return titles;
+        }
     }
 
     public class FameEntry
@@ -422,6 +524,18 @@ namespace Server.Misc
         {
             this.m_Karma = karma;
             this.m_Title = title;
+        }
+    }
+
+    public class VeteranTitle
+    {
+        public int Title { get; set; }
+        public int Years { get; set; }
+
+        public VeteranTitle(int title, int years)
+        {
+            Title = title;
+            Years = years;
         }
     }
 }

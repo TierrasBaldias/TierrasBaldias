@@ -4,6 +4,8 @@ using Server.ContextMenus;
 using Server.Mobiles;
 using Server.Multis;
 using Server.Network;
+using Server.Accounting;
+using System.Linq;
 
 namespace Server.Items
 {
@@ -23,7 +25,7 @@ namespace Server.Items
         {
             get
             {
-                if (this.IsSecure)
+                if (IsSecure)
                     return 0;
 
                 return base.DefaultMaxWeight;
@@ -35,14 +37,14 @@ namespace Server.Items
 		[CommandProperty(AccessLevel.GameMaster)]
 		public string EngravedText
 		{
-			get { return this.m_EngravedText; }
+			get { return m_EngravedText; }
 			set
 			{
 				if (value != null)
-					this.m_EngravedText = value;
+					m_EngravedText = value;
 				else
-					this.m_EngravedText = string.Empty;
-				this.InvalidateProperties();
+					m_EngravedText = string.Empty;
+				InvalidateProperties();
 			}
 		}
 
@@ -56,7 +58,7 @@ namespace Server.Items
 
         public override bool CheckHold(Mobile m, Item item, bool message, bool checkItems, int plusItems, int plusWeight)
         {
-            if (this.IsSecure && !BaseHouse.CheckHold(m, this, item, message, checkItems, plusItems, plusWeight))
+            if (IsSecure && !BaseHouse.CheckHold(m, this, item, message, checkItems, plusItems, plusWeight))
                 return false;
 
             return base.CheckHold(m, item, message, checkItems, plusItems, plusWeight);
@@ -64,22 +66,68 @@ namespace Server.Items
 
         public override bool CheckItemUse(Mobile from, Item item)
         {
-            if (this.IsDecoContainer && item is BaseBook)
+            if (IsDecoContainer && item is BaseBook)
                 return true;
 
             return base.CheckItemUse(from, item);
         }
 
+        public virtual bool Security { get { return true; } }
+
         public override void GetContextMenuEntries(Mobile from, List<ContextMenuEntry> list)
         {
             base.GetContextMenuEntries(from, list);
-            SetSecureLevelEntry.AddTo(from, this, list);
+
+            if (Security)
+            {
+                SetSecureLevelEntry.AddTo(from, this, list);
+            }
+        }
+
+        public override void GetChildContextMenuEntries(Mobile from, List<ContextMenuEntry> list, Item item)
+        {
+            if (IsLockedDown)
+            {
+                BaseHouse house = BaseHouse.FindHouseAt(this);
+
+                if (house != null && house.IsOwner(from) && house.IsLockedDown(this) && house.IsLockedDown(item))
+                {
+                    list.Add(new ReleaseEntry(from, item, house));
+                }
+            }
+            else
+            {
+                base.GetChildContextMenuEntries(from, list, item);
+            }
+        }
+
+        public virtual void DropItemStacked(Item dropped)
+        {
+            List<Item> list = Items;
+
+            ItemFlags.SetTaken(dropped, true);
+
+            for (int i = 0; i < list.Count; ++i)
+            {
+                Item item = list[i];
+
+                if (!(item is Container) && item.StackWith(null, dropped, false))
+                    return;
+            }
+
+            DropItem(dropped);
         }
 
         public override bool TryDropItem(Mobile from, Item dropped, bool sendFullMessage)
         {
-            if (!this.CheckHold(from, dropped, sendFullMessage, true))
+            if (!CheckHold(from, dropped, sendFullMessage, !CheckStack(from, dropped)))
                 return false;
+
+            if (dropped.QuestItem && from.Backpack != this)
+            {
+                from.SendLocalizedMessage(1074769); // An item must be in your backpack (and not in a container within) to be toggled as a quest item.
+                return false;
+            }
 
             BaseHouse house = BaseHouse.FindHouseAt(this);
 
@@ -95,7 +143,7 @@ namespace Server.Items
                     return false;
             }
 
-            List<Item> list = this.Items;
+            List<Item> list = Items;
 
             for (int i = 0; i < list.Count; ++i)
             {
@@ -105,17 +153,28 @@ namespace Server.Items
                     return true;
             }
 
-            this.DropItem(dropped);
+            DropItem(dropped);
 
             ItemFlags.SetTaken(dropped, true);
+
+            EventSink.InvokeContainerDroppedTo(new ContainerDroppedToEventArgs(from, this, dropped));
+
+            if (!EnchantedHotItemSocket.CheckDrop(from, this, dropped))
+                return false;
 
             return true;
         }
 
         public override bool OnDragDropInto(Mobile from, Item item, Point3D p)
         {
-            if (!this.CheckHold(from, item, true, true))
+            if (!CheckHold(from, item, true, true))
                 return false;
+
+            if (item.QuestItem && from.Backpack != this)
+            {
+                from.SendLocalizedMessage(1074769); // An item must be in your backpack (and not in a container within) to be toggled as a quest item.
+                return false;
+            }
 
             BaseHouse house = BaseHouse.FindHouseAt(this);
 
@@ -132,44 +191,100 @@ namespace Server.Items
             }
 
             item.Location = new Point3D(p.X, p.Y, 0);
-            this.AddItem(item);
 
-            from.SendSound(this.GetDroppedSound(item), this.GetWorldLocation());
+            AddItem(item);
+
+            from.SendSound(GetDroppedSound(item), GetWorldLocation());
 
             ItemFlags.SetTaken(item, true);
 
+            EventSink.InvokeContainerDroppedTo(new ContainerDroppedToEventArgs(from, this, item));
+
+            if (!EnchantedHotItemSocket.CheckDrop(from, this, item))
+                return false;
+
             return true;
+        }
+
+        public override bool OnDroppedInto(Mobile from, Container target, Point3D p)
+        {
+            bool canDrop = base.OnDroppedInto(from, target, p);
+
+            if (canDrop && target is BankBox)
+            {
+                CheckBank((BankBox)target, from);
+            }
+
+            return canDrop;
         }
 
         public override void UpdateTotal(Item sender, TotalType type, int delta)
         {
             base.UpdateTotal(sender, type, delta);
 
-            if (type == TotalType.Weight && this.RootParent is Mobile)
-                ((Mobile)this.RootParent).InvalidateProperties();
+            if (type == TotalType.Weight && RootParent is Mobile)
+                ((Mobile)RootParent).InvalidateProperties();
         }
 
         public override void OnDoubleClick(Mobile from)
         {
-            if (from.IsStaff() || from.InRange(this.GetWorldLocation(), 2) || this.RootParent is PlayerVendor)
-                this.Open(from);
+            if (from.IsStaff() || RootParent is PlayerVendor ||
+                (from.InRange(GetWorldLocation(), 2) && (Parent != null || (Z >= from.Z - 8 && Z <= from.Z + 16))))
+            {
+                Open(from);
+            }
             else
+            {
                 from.LocalOverheadMessage(MessageType.Regular, 0x3B2, 1019045); // I can't reach that.
+            }
         }
 
 		public override void AddNameProperty(ObjectPropertyList list)
 		{
 			base.AddNameProperty(list);
 
-			if(!String.IsNullOrEmpty(this.EngravedText))
+			if(!String.IsNullOrEmpty(EngravedText))
 			{
-				list.Add(1072305, this.EngravedText); // Engraved: ~1_INSCRIPTION~
+                list.Add(1072305, Utility.FixHtml(EngravedText)); // Engraved: ~1_INSCRIPTION~
 			}
 		}
 
+        public override bool DropToWorld(Mobile m, Point3D p)
+        {
+            Server.Engines.Despise.WispOrb.CheckDrop(this, m);
+
+            return base.DropToWorld(m, p);
+        }
+
 		public virtual void Open(Mobile from)
         {
-            this.DisplayTo(from);
+            DisplayTo(from);
+        }
+
+        public void CheckBank(BankBox bank, Mobile from)
+        {
+            if (AccountGold.Enabled && bank.Owner == from && from.Account != null)
+            {
+                List<BankCheck> checks = new List<BankCheck>(Items.OfType<BankCheck>());
+
+                foreach (BankCheck check in checks)
+                {
+                    if (from.Account.DepositGold(check.Worth))
+                    {
+                        from.SendLocalizedMessage(1042672, true, check.Worth.ToString("#,0"));
+                        check.Delete();
+                    }
+                    else
+                    {
+                        from.AddToBackpack(check);
+                    }
+                }
+
+                checks.Clear();
+                checks.TrimExcess();
+
+                UpdateTotals();
+            }
         }
 
         public override void Serialize(GenericWriter writer)
@@ -200,10 +315,10 @@ namespace Server.Items
         [Constructable]
         public CreatureBackpack(string name)
         {
-            this.Name = name;
-            this.Layer = Layer.Backpack;
-            this.Hue = 5;
-            this.Weight = 3.0;
+            Name = name;
+            Layer = Layer.Backpack;
+            Hue = 5;
+            Weight = 3.0;
         }
 
         public CreatureBackpack(Serial serial)
@@ -213,16 +328,16 @@ namespace Server.Items
 
         public override void AddNameProperty(ObjectPropertyList list)
         {
-            if (this.Name != null)
-                list.Add(1075257, this.Name); // Contents of ~1_PETNAME~'s pack.
+            if (Name != null)
+                list.Add(1075257, Name); // Contents of ~1_PETNAME~'s pack.
             else
                 base.AddNameProperty(list);
         }
 
         public override void OnItemRemoved(Item item)
         {
-            if (this.Items.Count == 0)
-                this.Delete();
+            if (Items.Count == 0)
+                Delete();
 
             base.OnItemRemoved(item);
         }
@@ -260,7 +375,7 @@ namespace Server.Items
             int version = reader.ReadInt();
 
             if (version == 0)
-                this.Weight = 13.0;
+                Weight = 13.0;
         }
     }
 
@@ -269,8 +384,8 @@ namespace Server.Items
         [Constructable]
         public StrongBackpack()
         {
-            this.Layer = Layer.Backpack;
-            this.Weight = 13.0;
+            Layer = Layer.Backpack;
+            Weight = 13.0;
         }
 
         public StrongBackpack(Serial serial)
@@ -292,7 +407,7 @@ namespace Server.Items
 
         public override bool CheckContentDisplay(Mobile from)
         {
-            object root = this.RootParent;
+            object root = RootParent;
 
             if (root is BaseCreature && ((BaseCreature)root).Controlled && ((BaseCreature)root).ControlMaster == from)
                 return true;
@@ -314,7 +429,7 @@ namespace Server.Items
             int version = reader.ReadInt();
 
             if (version == 0)
-                this.Weight = 13.0;
+                Weight = 13.0;
         }
     }
 
@@ -324,8 +439,8 @@ namespace Server.Items
         public Backpack()
             : base(0xE75)
         {
-            this.Layer = Layer.Backpack;
-            this.Weight = 3.0;
+            Layer = Layer.Backpack;
+            Weight = 3.0;
         }
 
         public Backpack(Serial serial)
@@ -339,7 +454,7 @@ namespace Server.Items
             {
                 if (Core.ML)
                 {
-                    Mobile m = this.ParentEntity as Mobile;
+                    Mobile m = ParentEntity as Mobile;
                     if (m != null && m.Player && m.Backpack == this)
                     {
                         return 550;
@@ -357,10 +472,10 @@ namespace Server.Items
         }
         public bool Dye(Mobile from, DyeTub sender)
         {
-            if (this.Deleted)
+            if (Deleted)
                 return false;
 
-            this.Hue = sender.DyedHue;
+            Hue = sender.DyedHue;
 
             return true;
         }
@@ -378,8 +493,8 @@ namespace Server.Items
 
             int version = reader.ReadInt();
 
-            if (version == 0 && this.ItemID == 0x9B2)
-                this.ItemID = 0xE75;
+            if (version == 0 && ItemID == 0x9B2)
+                ItemID = 0xE75;
         }
     }
 
@@ -389,7 +504,7 @@ namespace Server.Items
         public Pouch()
             : base(0xE79)
         {
-            this.Weight = 1.0;
+            Weight = 1.0;
         }
 
         public Pouch(Serial serial)
@@ -417,7 +532,7 @@ namespace Server.Items
         public BaseBagBall(int itemID)
             : base(itemID)
         {
-            this.Weight = 1.0;
+            Weight = 1.0;
         }
 
         public BaseBagBall(Serial serial)
@@ -427,10 +542,10 @@ namespace Server.Items
 
         public bool Dye(Mobile from, DyeTub sender)
         {
-            if (this.Deleted)
+            if (Deleted)
                 return false;
 
-            this.Hue = sender.DyedHue;
+            Hue = sender.DyedHue;
 
             return true;
         }
@@ -512,7 +627,7 @@ namespace Server.Items
         public Bag()
             : base(0xE76)
         {
-            this.Weight = 2.0;
+            Weight = 2.0;
         }
 
         public Bag(Serial serial)
@@ -522,10 +637,10 @@ namespace Server.Items
 
         public bool Dye(Mobile from, DyeTub sender)
         {
-            if (this.Deleted)
+            if (Deleted)
                 return false;
 
-            this.Hue = sender.DyedHue;
+            Hue = sender.DyedHue;
 
             return true;
         }
@@ -551,7 +666,28 @@ namespace Server.Items
         public Barrel()
             : base(0xE77)
         {
-            this.Weight = 25.0;
+            Weight = 25.0;
+        }
+
+        public void Pour(Mobile from, BaseBeverage beverage)
+        {
+            if (beverage.Content == BeverageType.Water)
+            {
+                if (Items.Count > 0)
+                {
+                    from.SendLocalizedMessage(500848); // Couldn't pour it there.  It was already full.
+                    beverage.PrivateOverheadMessage(Server.Network.MessageType.Regular, 0, 500841, from.NetState); // that has somethign in it.
+                }
+                else
+                {
+                    var barrel = new WaterBarrel();
+                    barrel.Movable = false;
+                    barrel.MoveToWorld(Location, Map);
+
+                    beverage.Pour_OnTarget(from, barrel);
+                    Delete();
+                }
+            }
         }
 
         public Barrel(Serial serial)
@@ -571,9 +707,6 @@ namespace Server.Items
             base.Deserialize(reader);
 
             int version = reader.ReadInt();
-
-            if (this.Weight == 0.0)
-                this.Weight = 25.0;
         }
     }
 
@@ -583,7 +716,7 @@ namespace Server.Items
         public Keg()
             : base(0xE7F)
         {
-            this.Weight = 15.0;
+            Weight = 15.0;
         }
 
         public Keg(Serial serial)
@@ -612,7 +745,7 @@ namespace Server.Items
         public PicnicBasket()
             : base(0xE7A)
         {
-            this.Weight = 2.0; // Stratics doesn't know weight
+            Weight = 2.0; // Stratics doesn't know weight
         }
 
         public PicnicBasket(Serial serial)
@@ -641,7 +774,7 @@ namespace Server.Items
         public Basket()
             : base(0x990)
         {
-            this.Weight = 1.0; // Stratics doesn't know weight
+            Weight = 1.0; // Stratics doesn't know weight
         }
 
         public Basket(Serial serial)
@@ -672,7 +805,7 @@ namespace Server.Items
         public WoodenBox()
             : base(0x9AA)
         {
-            this.Weight = 4.0;
+            Weight = 4.0;
         }
 
         public WoodenBox(Serial serial)
@@ -703,7 +836,41 @@ namespace Server.Items
         public SmallCrate()
             : base(0x9A9)
         {
-            this.Weight = 2.0;
+            Weight = 2.0;
+        }
+
+        /// <summary>
+        /// Due to popular demand, ServUO will be reproducing an EA bug that was never fixed.
+        /// </summary>
+        /// <param name="from"></param>
+        /// <returns></returns>
+        public override bool CheckLocked(Mobile from)
+        {
+            if (ItemID != 0xE7E)
+            {
+                return base.CheckLocked(from);
+            }
+
+            if (!Locked && TrapType == TrapType.DartTrap && from.InRange(GetWorldLocation(), 2))
+            {
+                int damage;
+                var p = GetWorldLocation();
+                var map = Map;
+
+                if (TrapLevel > 0)
+                    damage = Utility.RandomMinMax(5, 15) * TrapLevel;
+                else
+                    damage = TrapPower;
+
+                AOS.Damage(from, damage, 100, 0, 0, 0, 0);
+
+                from.LocalOverheadMessage(Network.MessageType.Regular, 0x62, 502998); // A dart imbeds itself in your flesh!
+                Effects.PlaySound(p, map, 0x223);
+
+                return true;
+            }
+
+            return base.CheckLocked(from);
         }
 
         public SmallCrate(Serial serial)
@@ -723,9 +890,6 @@ namespace Server.Items
             base.Deserialize(reader);
 
             int version = reader.ReadInt();
-
-            if (this.Weight == 4.0)
-                this.Weight = 2.0;
         }
     }
 
@@ -737,7 +901,7 @@ namespace Server.Items
         public MediumCrate()
             : base(0xE3F)
         {
-            this.Weight = 2.0;
+            Weight = 2.0;
         }
 
         public MediumCrate(Serial serial)
@@ -757,9 +921,6 @@ namespace Server.Items
             base.Deserialize(reader);
 
             int version = reader.ReadInt();
-
-            if (this.Weight == 6.0)
-                this.Weight = 2.0;
         }
     }
 
@@ -771,7 +932,7 @@ namespace Server.Items
         public LargeCrate()
             : base(0xE3D)
         {
-            this.Weight = 1.0;
+            Weight = 1.0;
         }
 
         public LargeCrate(Serial serial)
@@ -791,9 +952,6 @@ namespace Server.Items
             base.Deserialize(reader);
 
             int version = reader.ReadInt();
-
-            if (this.Weight == 8.0)
-                this.Weight = 1.0;
         }
     }
 
@@ -811,6 +969,9 @@ namespace Server.Items
             : base(serial)
         {
         }
+		
+		public override double DefaultWeight { get { return 5; } } 
+		public override int LabelNumber { get { return 1022472; } } // metal box
 
         public override void Serialize(GenericWriter writer)
         {
@@ -824,9 +985,6 @@ namespace Server.Items
             base.Deserialize(reader);
 
             int version = reader.ReadInt();
-
-            if (version == 0 && this.Weight == 3)
-                this.Weight = -1;
         }
     }
 
@@ -857,9 +1015,6 @@ namespace Server.Items
             base.Deserialize(reader);
 
             int version = reader.ReadInt();
-
-            if (version == 0 && this.Weight == 25)
-                this.Weight = -1;
         }
     }
 
@@ -890,9 +1045,6 @@ namespace Server.Items
             base.Deserialize(reader);
 
             int version = reader.ReadInt();
-
-            if (version == 0 && this.Weight == 25)
-                this.Weight = -1;
         }
     }
 
@@ -904,7 +1056,7 @@ namespace Server.Items
         public WoodenChest()
             : base(0xe43)
         {
-            this.Weight = 2.0;
+            Weight = 2.0;
         }
 
         public WoodenChest(Serial serial)
@@ -924,9 +1076,6 @@ namespace Server.Items
             base.Deserialize(reader);
 
             int version = reader.ReadInt();
-
-            if (this.Weight == 15.0)
-                this.Weight = 2.0;
         }
     }
 
@@ -957,9 +1106,6 @@ namespace Server.Items
             base.Deserialize(reader);
 
             int version = reader.ReadInt();
-
-            if (version == 0 && this.Weight == 15)
-                this.Weight = -1;
         }
     }
 
@@ -990,9 +1136,6 @@ namespace Server.Items
             base.Deserialize(reader);
 
             int version = reader.ReadInt();
-
-            if (version == 0 && this.Weight == 15)
-                this.Weight = -1;
         }
     }
 
@@ -1023,9 +1166,6 @@ namespace Server.Items
             base.Deserialize(reader);
 
             int version = reader.ReadInt();
-
-            if (version == 0 && this.Weight == 15)
-                this.Weight = -1;
         }
     }
 
@@ -1037,7 +1177,7 @@ namespace Server.Items
         public WoodenFootLocker()
             : base(0x2811)
         {
-            this.GumpID = 0x10B;
+            GumpID = 0x10B;
         }
 
         public WoodenFootLocker(Serial serial)
@@ -1058,11 +1198,11 @@ namespace Server.Items
 
             int version = reader.ReadInt();
 
-            if (version == 0 && this.Weight == 15)
-                this.Weight = -1;
+            if (version == 0 && Weight == 15)
+                Weight = -1;
 			
             if (version < 2)
-                this.GumpID = 0x10B;
+                GumpID = 0x10B;
         }
     }
 
@@ -1093,9 +1233,104 @@ namespace Server.Items
             base.Deserialize(reader);
 
             int version = reader.ReadInt();
+        }
+    }
 
-            if (version == 0 && this.Weight == 15)
-                this.Weight = -1;
+    [Furniture]
+    [FlipableAttribute(0x4026, 0x4025)]
+    public class GargishChest : LockableContainer
+    {
+        [Constructable]
+        public GargishChest()
+            : base(0x4026)
+        {
+            Weight = 1.0;
+        }
+
+        public GargishChest(Serial serial)
+            : base(serial)
+        {
+        }
+
+        public override void Serialize(GenericWriter writer)
+        {
+            base.Serialize(writer);
+            writer.Write((int)0); // version 
+        }
+
+        public override void Deserialize(GenericReader reader)
+        {
+            base.Deserialize(reader);
+            int version = reader.ReadInt();
+        }
+    }
+
+    [Furniture]
+    [FlipableAttribute(0xA99, 0xA97)]
+    public class AcademicBookCase : BaseContainer
+    {
+        public override int LabelNumber { get { return 1071213; } } // academic bookcase
+        public override int DefaultGumpID { get { return 0x4D; } }
+
+        [Constructable]
+        public AcademicBookCase()
+            : base(0xA99)
+        {
+            Weight = 11.0;
+        }
+
+        public AcademicBookCase(Serial serial)
+            : base(serial)
+        {
+        }
+
+        public override void Serialize(GenericWriter writer)
+        {
+            base.Serialize(writer);
+            writer.Write((int)0); // version
+        }
+
+        public override void Deserialize(GenericReader reader)
+        {
+            base.Deserialize(reader);
+            int version = reader.ReadInt();
+        }
+    }
+
+    [FlipableAttribute(0xA0DB, 0xA0DC)]
+    public class EnchantedPicnicBasket : BaseContainer
+    {
+        public override int LabelNumber { get { return 1158333; } } // enchanted picnic basket
+
+        public override int DefaultGumpID { get { return 0x108; } }
+
+        [Constructable]
+        public EnchantedPicnicBasket()
+            : base(0xA0DB)
+        {
+            DropItem(new PicnicBlanketDeed());
+            DropItem(new Hamburger(3));
+            DropItem(new Sausage(3));
+            DropItem(new HotDog(3));
+        }
+
+        public EnchantedPicnicBasket(Serial serial)
+            : base(serial)
+        {
+        }
+
+        public override void Serialize(GenericWriter writer)
+        {
+            base.Serialize(writer);
+
+            writer.Write((int)0); // version
+        }
+
+        public override void Deserialize(GenericReader reader)
+        {
+            base.Deserialize(reader);
+
+            int version = reader.ReadInt();
         }
     }
 }

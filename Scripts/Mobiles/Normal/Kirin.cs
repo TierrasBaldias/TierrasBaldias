@@ -86,6 +86,9 @@ namespace Server.Mobiles
                 return TimeSpan.FromHours(1.0);
             }
         }
+
+        public override TribeType Tribe { get { return TribeType.Fey; } }
+
         public override OppositionGroup OppositionGroup
         {
             get
@@ -157,7 +160,7 @@ namespace Server.Mobiles
         {
             base.OnDeath(c);
 
-            if (Utility.RandomDouble() < 0.3)
+            if (!Controlled && Utility.RandomDouble() < 0.3)
                 c.DropItem(new KirinBrains());
         }
 

@@ -39,14 +39,12 @@ namespace Server.Items
                 from.FixedParticles(0x376A, 9, 32, 5007, EffectLayer.Waist);
                 from.PlaySound(0x1E3);
 
-                BasePotion.PlayDrinkEffect(from);
-
-                if (!Engines.ConPVP.DuelContext.IsFreeConsume(from))
-                    this.Consume();
+                PlayDrinkEffect(from);
+                Consume();
             }
             else
             {
-                from.SendMessage("You already have nightsight.");
+                from.SendLocalizedMessage(502178); // You are already affected by this type of potion.
             }
         }
     }

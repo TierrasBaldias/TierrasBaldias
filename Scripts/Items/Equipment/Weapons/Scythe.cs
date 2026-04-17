@@ -1,8 +1,10 @@
 using System;
 using Server.Engines.Harvest;
+using Server.Engines.Craft;
 
 namespace Server.Items
 {
+    [Alterable(typeof(DefBlacksmithy), typeof(GargishScythe))]
     [FlipableAttribute(0x26BA, 0x26C4)]
     public class Scythe : BasePoleArm
     {
@@ -10,7 +12,7 @@ namespace Server.Items
         public Scythe()
             : base(0x26BA)
         {
-            this.Weight = 5.0;
+            Weight = 5.0;
         }
 
         public Scythe(Serial serial)
@@ -119,18 +121,13 @@ namespace Server.Items
         public override void Serialize(GenericWriter writer)
         {
             base.Serialize(writer);
-
             writer.Write((int)0); // version
         }
 
         public override void Deserialize(GenericReader reader)
         {
             base.Deserialize(reader);
-
             int version = reader.ReadInt();
-
-            if (this.Weight == 15.0)
-                this.Weight = 5.0;
         }
     }
 }

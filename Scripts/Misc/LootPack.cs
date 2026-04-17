@@ -1,9 +1,3 @@
-#region Header
-// **********
-// ServUO - LootPack.cs
-// **********
-#endregion
-
 #region References
 using System;
 
@@ -22,11 +16,9 @@ namespace Server
 				return 0;
 			}
 
-			int luck = killer.Luck;
+			int luck = killer is PlayerMobile ? ((PlayerMobile)killer).RealLuck : killer.Luck;
 
-            luck += FountainOfFortune.GetLuckBonus(killer);
-
-			PlayerMobile pmKiller = killer as PlayerMobile;
+            PlayerMobile pmKiller = killer as PlayerMobile;
 			if (pmKiller != null && pmKiller.SentHonorContext != null && pmKiller.SentHonorContext.Target == victim)
 			{
 				luck += pmKiller.SentHonorContext.PerfectionLuckBonus;
@@ -50,12 +42,14 @@ namespace Server
             return (int)(Math.Pow(luck, 1 / 1.8) * 100);
         }
 
-		public static int GetLuckChanceForKiller(Mobile dead)
+		public static int GetLuckChanceForKiller(Mobile m)
 		{
+            BaseCreature dead = m as BaseCreature;
+
             if (dead == null)
                 return 240;
 
-			var list = BaseCreature.GetLootingRights(dead.DamageEntries, dead.HitsMax);
+			var list = dead.GetLootingRights();
 
 			DamageStore highest = null;
 
@@ -586,7 +580,7 @@ namespace Server
             if (e == null)
                 return false;
 
-            return e.Map == Map.TerMur;
+            return e.Map == Map.TerMur || (!IsInTokuno(e) && !IsMondain(e) && Utility.RandomBool());
 		}
 		#endregion
 
@@ -676,7 +670,7 @@ namespace Server
 					if (Core.AOS)
 					{
                         // Try to generate a new random item based on the creature killed
-                        if (from is BaseCreature)
+                        if (Core.HS && RandomItemGenerator.Enabled && from is BaseCreature)
                         {
                             if (RandomItemGenerator.GenerateRandomItem(item, ((BaseCreature)from).LastKiller, (BaseCreature)from))
                                 return item;
@@ -786,7 +780,7 @@ namespace Server
 
 					BaseInstrument instr = (BaseInstrument)item;
 
-					instr.Quality = InstrumentQuality.Regular;
+					instr.Quality = ItemQuality.Normal;
 					instr.Slayer = slayer;
 				}
 

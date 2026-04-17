@@ -1,12 +1,7 @@
-#region Header
-// **********
-// ServUO - Guild.cs
-// **********
-#endregion
-
 #region References
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 using Server.Commands;
 using Server.Commands.Generic;
@@ -147,6 +142,11 @@ namespace Server.Guilds
 				}
 			}
 		}
+
+        public List<Guild> Members
+        {
+            get { return m_Members; }
+        }
 
 		public bool IsPendingMember(Guild g)
 		{
@@ -1258,6 +1258,7 @@ namespace Server.Guilds
 				}
 
 				m.Guild = null;
+                Engines.Points.PointsSystem.ViceVsVirtue.OnResign(m, true);
 			}
 
 			m_Members.Clear();
@@ -1298,6 +1299,11 @@ namespace Server.Guilds
 
 		public bool IsAlly(Guild g)
 		{
+            if (g == null)
+            {
+                return false;
+            }
+
 			if (NewGuildSystem)
 			{
 				return (Alliance != null && Alliance.IsMember(this) && Alliance.IsMember(g));
@@ -1308,6 +1314,11 @@ namespace Server.Guilds
 
 		public bool IsEnemy(Guild g)
 		{
+            if (g == null)
+            {
+                return false;
+            }
+
 			if (NewGuildSystem)
 			{
 				return IsWar(g);
@@ -1583,7 +1594,9 @@ namespace Server.Guilds
 				m_Members.Add(m);
 				m.Guild = this;
 
-				if (!NewGuildSystem)
+                EventSink.InvokeJoinGuild(new JoinGuildEventArgs(m, this));
+
+                if (!NewGuildSystem)
 				{
 					m.GuildFealty = m_Leader;
 				}
@@ -1651,6 +1664,8 @@ namespace Server.Guilds
 					guild.InvalidateWarNotoriety();
 				}
 
+                Engines.Points.PointsSystem.ViceVsVirtue.OnResign(m, message == 1063411);
+
 				m.Delta(MobileDelta.Noto);
 			}
 		}
@@ -1704,9 +1719,9 @@ namespace Server.Guilds
 
 		public void GuildMessage(int number)
 		{
-			for (int i = 0; i < m_Members.Count; ++i)
+			foreach (Mobile m in OnlineMembers)
 			{
-				m_Members[i].SendLocalizedMessage(number);
+				m.SendLocalizedMessage(number);
 			}
 		}
 
@@ -1717,9 +1732,9 @@ namespace Server.Guilds
 
 		public void GuildMessage(int number, string args, int hue)
 		{
-			for (int i = 0; i < m_Members.Count; ++i)
+			foreach (Mobile m in OnlineMembers)
 			{
-				m_Members[i].SendLocalizedMessage(number, args, hue);
+				m.SendLocalizedMessage(number, args, hue);
 			}
 		}
 
@@ -1735,9 +1750,9 @@ namespace Server.Guilds
 
 		public void GuildMessage(int number, bool append, string affix, string args, int hue)
 		{
-			for (int i = 0; i < m_Members.Count; ++i)
+			foreach (Mobile m in OnlineMembers)
 			{
-				m_Members[i].SendLocalizedMessage(number, append, affix, args, hue);
+				m.SendLocalizedMessage(number, append, affix, args, hue);
 			}
 		}
 
@@ -1753,9 +1768,9 @@ namespace Server.Guilds
 
 		public void GuildTextMessage(int hue, string text)
 		{
-			for (int i = 0; i < m_Members.Count; ++i)
+			foreach (Mobile m in OnlineMembers)
 			{
-				m_Members[i].SendMessage(hue, text);
+				m.SendMessage(hue, text);
 			}
 		}
 
@@ -1767,10 +1782,9 @@ namespace Server.Guilds
 		public void GuildChat(Mobile from, int hue, string text)
 		{
 			Packet p = null;
-			for (int i = 0; i < m_Members.Count; i++)
-			{
-				Mobile m = m_Members[i];
 
+			foreach (Mobile m in OnlineMembers)
+			{
 				NetState state = m.NetState;
 
 				if (state != null)
@@ -1991,6 +2005,10 @@ namespace Server.Guilds
 		public List<Mobile> Accepted { get { return m_Accepted; } }
 
 		public List<Mobile> Members { get { return m_Members; } }
+
+		public IEnumerable<Mobile> OnlineMembers { get { return m_Members.Where(o => o.NetState != null && o.NetState.Running); } }
+
+		public int OnlineMembersCount { get { return m_Members.Count(o => o.NetState != null && o.NetState.Running); } }
 		#endregion
 	}
 }

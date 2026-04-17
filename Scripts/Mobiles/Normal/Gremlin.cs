@@ -36,8 +36,6 @@ namespace Server.Mobiles
             AddItem(new Bow());
             PackItem(new Arrow(Utility.RandomMinMax(60, 80)));
             PackItem(new Apple(5));
-
-            QLPoints = 5;
         }
 
         public Gremlin(Serial serial)
@@ -48,6 +46,14 @@ namespace Server.Mobiles
         public override void GenerateLoot()
         {
             AddLoot(LootPack.Rich);
+        }
+
+        public override void OnDeath(Container c)
+        {
+            base.OnDeath(c);
+
+            if (Utility.RandomDouble() < 0.01)
+                c.DropItem(new LuckyCoin());
         }
 
         public override void Serialize(GenericWriter writer)

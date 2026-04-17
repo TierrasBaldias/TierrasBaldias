@@ -49,20 +49,15 @@ namespace Server.Spells.Chivalry
                 return 1060718;
             }
         }// Expor Flamus
-        public override bool CheckCast()
-        {
-            if (Engines.ConPVP.DuelContext.CheckSuddenDeath(this.Caster))
-            {
-                this.Caster.SendMessage(0x22, "You cannot cast this spell when in sudden death.");
-                return false;
-            }
-
-            return base.CheckCast();
-        }
 
         public override void OnCast()
         {
             this.Caster.Target = new InternalTarget(this);
+        }
+
+        public override bool CheckDisturb(DisturbType type, bool firstCircle, bool resistable)
+        {
+            return true;
         }
 
         public void Target(Mobile m)

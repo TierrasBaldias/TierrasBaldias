@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using Server.Mobiles;
 using Server.Targeting;
+using Server.Spells.SkillMasteries;
 
 namespace Server.Spells.Necromancy
 {
@@ -23,7 +24,7 @@ namespace Server.Spells.Necromancy
         {
             get
             {
-                return TimeSpan.FromSeconds(1.5);
+                return TimeSpan.FromSeconds(1.75);
             }
         }
         public override double RequiredSkill
@@ -66,31 +67,40 @@ namespace Server.Spells.Necromancy
 
         public override void OnCast()
         {
-            this.Caster.Target = new InternalTarget(this);
+            Caster.Target = new InternalTarget(this);
         }
 
         public void Target(Mobile m)
         {
-            if (this.Caster == m || !(m is PlayerMobile || m is BaseCreature)) // only PlayerMobile and BaseCreature implement blood oath checking
+            if (Caster == m)
             {
-                this.Caster.SendLocalizedMessage(1060508); // You can't curse that.
+                Caster.SendLocalizedMessage(1060508); // You can't curse that.
             }
-            else if (m_OathTable.Contains(this.Caster))
+            else if (m_OathTable.Contains(Caster))
             {
-                this.Caster.SendLocalizedMessage(1061607); // You are already bonded in a Blood Oath.
+                Caster.SendLocalizedMessage(1061607); // You are already bonded in a Blood Oath.
             }
             else if (m_OathTable.Contains(m))
             {
                 if (m.Player)
-                    this.Caster.SendLocalizedMessage(1061608); // That player is already bonded in a Blood Oath.
+                    Caster.SendLocalizedMessage(1061608); // That player is already bonded in a Blood Oath.
                 else
-                    this.Caster.SendLocalizedMessage(1061609); // That creature is already bonded in a Blood Oath.
+                    Caster.SendLocalizedMessage(1061609); // That creature is already bonded in a Blood Oath.
             }
-            else if (this.CheckHSequence(m))
+            else if (CheckHSequence(m))
             {
-                SpellHelper.Turn(this.Caster, m);
+                SpellHelper.Turn(Caster, m);
 
-                /* Temporarily creates a dark pact between the caster and the target.
+                ApplyEffects(m);
+                ConduitSpell.CheckAffected(Caster, m, ApplyEffects);
+            }
+
+            FinishSequence();
+        }
+
+        public void ApplyEffects(Mobile m, double strength = 1.0)
+        {
+            /* Temporarily creates a dark pact between the caster and the target.
                 * Any damage dealt by the target to the caster is increased, but the target receives the same amount of damage.
                 * The effect lasts for ((Spirit Speak skill level - target's Resist Magic skill level) / 80 ) + 8 seconds.
                 * 
@@ -98,38 +108,35 @@ namespace Server.Spells.Necromancy
                 * ((ss-rm)/8)+8
                 */
 
-                ExpireTimer timer = (ExpireTimer)m_Table[m];
-                if (timer != null)
-                    timer.DoExpire();
+            ExpireTimer timer = (ExpireTimer)m_Table[m];
+            if (timer != null)
+                timer.DoExpire();
 
-                m_OathTable[this.Caster] = this.Caster;
-                m_OathTable[m] = this.Caster;
+            m_OathTable[Caster] = Caster;
+            m_OathTable[m] = Caster;
 
-                if (m.Spell != null)
-                    m.Spell.OnCasterHurt();
-				
-                this.Caster.PlaySound(0x175);
+            if (m.Spell != null)
+                m.Spell.OnCasterHurt();
 
-                this.Caster.FixedParticles(0x375A, 1, 17, 9919, 33, 7, EffectLayer.Waist);
-                this.Caster.FixedParticles(0x3728, 1, 13, 9502, 33, 7, (EffectLayer)255);
+            Caster.PlaySound(0x175);
 
-                m.FixedParticles(0x375A, 1, 17, 9919, 33, 7, EffectLayer.Waist);
-                m.FixedParticles(0x3728, 1, 13, 9502, 33, 7, (EffectLayer)255);
+            Caster.FixedParticles(0x375A, 1, 17, 9919, 33, 7, EffectLayer.Waist);
+            Caster.FixedParticles(0x3728, 1, 13, 9502, 33, 7, (EffectLayer)255);
 
-                TimeSpan duration = TimeSpan.FromSeconds(((this.GetDamageSkill(this.Caster) - this.GetResistSkill(m)) / 8) + 8);
-                m.CheckSkill(SkillName.MagicResist, 0.0, 120.0);	//Skill check for gain
+            m.FixedParticles(0x375A, 1, 17, 9919, 33, 7, EffectLayer.Waist);
+            m.FixedParticles(0x3728, 1, 13, 9502, 33, 7, (EffectLayer)255);
 
-                timer = new ExpireTimer(this.Caster, m, duration);
-                timer.Start();
+            TimeSpan duration = TimeSpan.FromSeconds((((GetDamageSkill(Caster) - GetResistSkill(m)) / 8) + 8) * strength);
+            m.CheckSkill(SkillName.MagicResist, 0.0, 120.0);	//Skill check for gain
 
-                BuffInfo.AddBuff(this.Caster, new BuffInfo(BuffIcon.BloodOathCaster, 1075659, duration, this.Caster, m.Name.ToString()));
-                BuffInfo.AddBuff(m, new BuffInfo(BuffIcon.BloodOathCurse, 1075661, duration, m, this.Caster.Name.ToString()));
+            timer = new ExpireTimer(Caster, m, duration);
+            timer.Start();
 
-                m_Table[m] = timer;
-                this.HarmfulSpell(m);
-            }
+            BuffInfo.AddBuff(Caster, new BuffInfo(BuffIcon.BloodOathCaster, 1075659, duration, Caster, m.Name.ToString()));
+            BuffInfo.AddBuff(m, new BuffInfo(BuffIcon.BloodOathCurse, 1075661, duration, m, Caster.Name.ToString()));
 
-            this.FinishSequence();
+            m_Table[m] = timer;
+            HarmfulSpell(m);
         }
 
         private class ExpireTimer : Timer
@@ -140,40 +147,40 @@ namespace Server.Spells.Necromancy
             public ExpireTimer(Mobile caster, Mobile target, TimeSpan delay)
                 : base(TimeSpan.FromSeconds(1.0), TimeSpan.FromSeconds(1.0))
             {
-                this.m_Caster = caster;
-                this.m_Target = target;
-                this.m_End = DateTime.UtcNow + delay;
+                m_Caster = caster;
+                m_Target = target;
+                m_End = DateTime.UtcNow + delay;
 
-                this.Priority = TimerPriority.TwoFiftyMS;
+                Priority = TimerPriority.TwoFiftyMS;
             }
 
             public void DoExpire()
             {
-                if (m_OathTable.Contains(this.m_Caster))
+                if (m_OathTable.Contains(m_Caster))
                 {
-                    this.m_Caster.SendLocalizedMessage(1061620); // Your Blood Oath has been broken.
-                    m_OathTable.Remove(this.m_Caster);
+                    m_Caster.SendLocalizedMessage(1061620); // Your Blood Oath has been broken.
+                    m_OathTable.Remove(m_Caster);
                 }
 
-                if (m_OathTable.Contains(this.m_Target))
+                if (m_OathTable.Contains(m_Target))
                 {
-                    this.m_Target.SendLocalizedMessage(1061620); // Your Blood Oath has been broken.
-                    m_OathTable.Remove(this.m_Target);
+                    m_Target.SendLocalizedMessage(1061620); // Your Blood Oath has been broken.
+                    m_OathTable.Remove(m_Target);
                 }
 
-                this.Stop();
+                Stop();
 
-                BuffInfo.RemoveBuff(this.m_Caster, BuffIcon.BloodOathCaster);
-                BuffInfo.RemoveBuff(this.m_Target, BuffIcon.BloodOathCurse);
+                BuffInfo.RemoveBuff(m_Caster, BuffIcon.BloodOathCaster);
+                BuffInfo.RemoveBuff(m_Target, BuffIcon.BloodOathCurse);
 
-                m_Table.Remove(this.m_Caster);
+                m_Table.Remove(m_Caster);
             }
 
             protected override void OnTick()
             {
-                if (this.m_Caster.Deleted || this.m_Target.Deleted || !this.m_Caster.Alive || !this.m_Target.Alive || DateTime.UtcNow >= this.m_End)
+                if (m_Caster.Deleted || m_Target.Deleted || !m_Caster.Alive || !m_Target.Alive || DateTime.UtcNow >= m_End)
                 {
-                    this.DoExpire();
+                    DoExpire();
                 }
             }
         }
@@ -184,20 +191,20 @@ namespace Server.Spells.Necromancy
             public InternalTarget(BloodOathSpell owner)
                 : base(Core.ML ? 10 : 12, false, TargetFlags.Harmful)
             {
-                this.m_Owner = owner;
+                m_Owner = owner;
             }
 
             protected override void OnTarget(Mobile from, object o)
             {
                 if (o is Mobile)
-                    this.m_Owner.Target((Mobile)o);
+                    m_Owner.Target((Mobile)o);
                 else
                     from.SendLocalizedMessage(1060508); // You can't curse that.
             }
 
             protected override void OnTargetFinish(Mobile from)
             {
-                this.m_Owner.FinishSequence();
+                m_Owner.FinishSequence();
             }
         }
     }

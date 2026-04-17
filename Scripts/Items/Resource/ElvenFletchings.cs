@@ -2,26 +2,30 @@ using System;
 
 namespace Server.Items
 {
-    public class ElvenFletchings : Item
+    [TypeAlias("Server.Items.ElvenFletchings")]
+    public class ElvenFletching : Item, ICommodity
     {
         [Constructable]
-        public ElvenFletchings()
+        public ElvenFletching()
             : this(1)
         {
         }
 
         [Constructable]
-        public ElvenFletchings(int amount)
+        public ElvenFletching(int amount)
             : base(0x5737)
         {
             this.Stackable = true;
             this.Amount = amount;
         }
 
-        public ElvenFletchings(Serial serial)
+        public ElvenFletching(Serial serial)
             : base(serial)
         {
         }
+
+        TextDefinition ICommodity.Description { get { return LabelNumber; } }
+        bool ICommodity.IsDeedable { get { return true; } }
 
         public override int LabelNumber
         {

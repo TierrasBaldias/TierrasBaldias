@@ -53,6 +53,9 @@ namespace Server.Mobiles
 
             if (0.2 > Utility.RandomDouble())
                 this.PackItem(new BolaBall());
+
+            if (0.5 > Utility.RandomDouble())
+                PackItem(new Yeast());
         }
 
         public OrcBomber(Serial serial)
@@ -74,6 +77,9 @@ namespace Server.Mobiles
                 return true;
             }
         }
+
+        public override TribeType Tribe { get { return TribeType.Orc; } }
+
         public override OppositionGroup OppositionGroup
         {
             get
@@ -112,7 +118,7 @@ namespace Server.Mobiles
 
         public override void OnActionCombat()
         {
-            Mobile combatant = this.Combatant;
+            Mobile combatant = this.Combatant as Mobile;
 
             if (combatant == null || combatant.Deleted || combatant.Map != this.Map || !this.InRange(combatant, 12) || !this.CanBeHarmful(combatant) || !this.InLOS(combatant))
                 return;

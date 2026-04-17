@@ -1,18 +1,24 @@
 using System;
 using System.Collections.Generic;
 using Server.Multis;
+using Server.ContextMenus;
+using Server.Mobiles;
+using Server.Engines.Points;
+using System.Linq;
 
 namespace Server.Items
 {
-    public class TrashBarrel : Container, IChopable
+    public class TrashBarrel : BaseTrash, IChopable
     {
         private Timer m_Timer;
+
         [Constructable]
         public TrashBarrel()
             : base(0xE77)
         {
-            this.Hue = 0x3B2;
-            this.Movable = false;
+            Hue = 0x3B2;
+            Movable = false;
+            m_Cleanup = new List<CleanupArray>();
         }
 
         public TrashBarrel(Serial serial)
@@ -54,11 +60,13 @@ namespace Server.Items
 
             int version = reader.ReadInt();
 
-            if (this.Items.Count > 0)
+            if (Items.Count > 0)
             {
-                this.m_Timer = new EmptyTimer(this);
-                this.m_Timer.Start();
+                m_Timer = new EmptyTimer(this);
+                m_Timer.Start();
             }
+
+            m_Cleanup = new List<CleanupArray>();
         }
 
         public override bool OnDragDrop(Mobile from, Item dropped)
@@ -66,20 +74,22 @@ namespace Server.Items
             if (!base.OnDragDrop(from, dropped))
                 return false;
 
-            if (this.TotalItems >= 50)
+            AddCleanupItem(from, dropped);
+
+            if (TotalItems >= 50)
             {
-                this.Empty(501478); // The trash is full!  Emptying!
+                Empty(501478); // The trash is full!  Emptying!
             }
             else
             {
-                this.SendLocalizedMessageTo(from, 1010442); // The item will be deleted in three minutes
+                SendLocalizedMessageTo(from, 1010442); // The item will be deleted in three minutes
 
-                if (this.m_Timer != null)
-                    this.m_Timer.Stop();
+                if (m_Timer != null)
+                    m_Timer.Stop();
                 else
-                    this.m_Timer = new EmptyTimer(this);
+                    m_Timer = new EmptyTimer(this);
 
-                this.m_Timer.Start();
+                m_Timer.Start();
             }
 
             return true;
@@ -90,20 +100,22 @@ namespace Server.Items
             if (!base.OnDragDropInto(from, item, p))
                 return false;
 
-            if (this.TotalItems >= 50)
+            AddCleanupItem(from, item);
+
+            if (TotalItems >= 50)
             {
-                this.Empty(501478); // The trash is full!  Emptying!
+                Empty(501478); // The trash is full!  Emptying!
             }
             else
             {
-                this.SendLocalizedMessageTo(from, 1010442); // The item will be deleted in three minutes
+                SendLocalizedMessageTo(from, 1010442); // The item will be deleted in three minutes
 
-                if (this.m_Timer != null)
-                    this.m_Timer.Stop();
+                if (m_Timer != null)
+                    m_Timer.Stop();
                 else
-                    this.m_Timer = new EmptyTimer(this);
+                    m_Timer = new EmptyTimer(this);
 
-                this.m_Timer.Start();
+                m_Timer.Start();
             }
 
             return true;
@@ -115,33 +127,54 @@ namespace Server.Items
 
             if (house != null && house.IsCoOwner(from))
             {
-                Effects.PlaySound(this.Location, this.Map, 0x3B3);
+                Effects.PlaySound(Location, Map, 0x3B3);
                 from.SendLocalizedMessage(500461); // You destroy the item.
-                this.Destroy();
+                Destroy();
             }
         }
 
         public void Empty(int message)
         {
-            List<Item> items = this.Items;
+            List<Item> items = Items;
 
             if (items.Count > 0)
             {
-                this.PublicOverheadMessage(Network.MessageType.Regular, 0x3B2, message, "");
+                PublicOverheadMessage(Network.MessageType.Regular, 0x3B2, message, "");
 
                 for (int i = items.Count - 1; i >= 0; --i)
                 {
                     if (i >= items.Count)
                         continue;
 
-                    items[i].Delete();
+                    ConfirmCleanupItem(items[i]);
+
+                    #region SA
+                    if (.01 > Utility.RandomDouble())
+                        DropToCavernOfDiscarded(items[i]);
+                    else
+                        items[i].Delete();
+                    #endregion
+                }
+
+                if (m_Cleanup.Any(x => x.mobiles != null))
+                {
+                    foreach (var m in m_Cleanup.Select(x => x.mobiles).Distinct())
+                    {
+                        if (m_Cleanup.Find(x => x.mobiles == m && x.confirm) != null)
+                        {
+                            double point = m_Cleanup.Where(x => x.mobiles == m && x.confirm).Sum(x => x.points);
+                            m.SendLocalizedMessage(1151280, String.Format("{0}\t{1}", point.ToString(), m_Cleanup.Count(r => r.mobiles == m))); // You have received approximately ~1_VALUE~points for turning in ~2_COUNT~items for Clean Up Britannia.
+                            PointsSystem.CleanUpBritannia.AwardPoints(m, point);
+                        }
+                    }
+                    m_Cleanup.Clear();
                 }
             }
 
-            if (this.m_Timer != null)
-                this.m_Timer.Stop();
+            if (m_Timer != null)
+                m_Timer.Stop();            
 
-            this.m_Timer = null;
+            m_Timer = null;
         }
 
         private class EmptyTimer : Timer
@@ -150,14 +183,42 @@ namespace Server.Items
             public EmptyTimer(TrashBarrel barrel)
                 : base(TimeSpan.FromMinutes(3.0))
             {
-                this.m_Barrel = barrel;
-                this.Priority = TimerPriority.FiveSeconds;
+                m_Barrel = barrel;
+                Priority = TimerPriority.FiveSeconds;
             }
 
             protected override void OnTick()
             {
-                this.m_Barrel.Empty(501479); // Emptying the trashcan!
+                m_Barrel.Empty(501479); // Emptying the trashcan!
             }
         }
+
+        #region SA
+        public static void DropToCavernOfDiscarded(Item item)
+        {
+            if (item == null || item.Deleted)
+                return;
+
+            Rectangle2D rec = new Rectangle2D(901, 482, 40, 27);
+            Map map = Map.TerMur;
+
+            for (int i = 0; i < 50; i++)
+            {
+                int x = Utility.RandomMinMax(rec.X, rec.X + rec.Width);
+                int y = Utility.RandomMinMax(rec.Y, rec.Y + rec.Height);
+                int z = map.GetAverageZ(x, y);
+
+                Point3D p = new Point3D(x, y, z);
+
+                if (map.CanSpawnMobile(p))
+                {
+                    item.MoveToWorld(p, map);
+                    return;
+                }
+            }
+
+            item.Delete();
+        }
+        #endregion
     }
 }

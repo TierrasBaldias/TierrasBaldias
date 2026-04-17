@@ -51,6 +51,9 @@ namespace Server.Mobiles
 
             if (0.05 > Utility.RandomDouble())
                 this.PackItem(new OrcishKinMask());
+
+            if (0.5 > Utility.RandomDouble())
+                PackItem(new Yeast());
         }
 
         public OrcishMage(Serial serial)
@@ -86,6 +89,9 @@ namespace Server.Mobiles
                 return 1;
             }
         }
+
+        public override TribeType Tribe { get { return TribeType.Orc; } }
+
         public override OppositionGroup OppositionGroup
         {
             get

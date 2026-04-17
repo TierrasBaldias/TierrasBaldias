@@ -1,9 +1,3 @@
-#region Header
-// **********
-// ServUO - OrcScout.cs
-// **********
-#endregion
-
 #region References
 using Server.Items;
 using Server.Misc;
@@ -15,6 +9,8 @@ namespace Server.Mobiles
 	[CorpseName("an orcish corpse")]
 	public class OrcScout : BaseCreature
 	{
+        public override double HealChance { get { return 1.0; } }
+
 		[Constructable]
 		public OrcScout()
 			: base(AIType.AI_OrcScout, FightMode.Closest, 10, 7, 0.2, 0.4)
@@ -67,19 +63,24 @@ namespace Server.Mobiles
 			{
 				AddItem(new Bow());
 			}
+
+            if (0.5 > Utility.RandomDouble())
+                PackItem(new Yeast());
 		}
 
 		public OrcScout(Serial serial)
 			: base(serial)
 		{ }
 
-		public override InhumanSpeech SpeechType { get { return InhumanSpeech.Orc; } }
-		public override OppositionGroup OppositionGroup { get { return OppositionGroup.SavagesAndOrcs; } }
-		public override bool CanHeal { get { return true; } }
 		public override bool CanRummageCorpses { get { return true; } }
+        public override bool CanStealth { get { return true; } }
 		public override int Meat { get { return 1; } }
 
+		public override InhumanSpeech SpeechType { get { return InhumanSpeech.Orc; } }
+		public override OppositionGroup OppositionGroup { get { return OppositionGroup.SavagesAndOrcs; } }
+        public override TribeType Tribe { get { return TribeType.Orc; } }
 		public override void GenerateLoot()
+
 		{
 			AddLoot(LootPack.Rich);
 		}
@@ -131,14 +132,17 @@ namespace Server.Mobiles
 
 		private Mobile FindTarget()
 		{
-			foreach (Mobile m in GetMobilesInRange(10))
+            IPooledEnumerable eable = GetMobilesInRange(10);
+			foreach (Mobile m in eable)
 			{
 				if (m.Player && m.Hidden && m.IsPlayer())
 				{
+                    eable.Free();
 					return m;
 				}
 			}
 
+            eable.Free();
 			return null;
 		}
 

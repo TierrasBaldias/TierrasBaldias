@@ -1,263 +1,243 @@
 using System;
 using System.Text;
+using Server;
 using Server.Targeting;
+using Server.Items;
 
 namespace Server.Engines.Plants
 {
-    public class Seed : Item
-    {
-        private PlantType m_PlantType;
-        private PlantHue m_PlantHue;
-        private bool m_ShowType;
-        [Constructable]
-        public Seed()
-            : this(PlantTypeInfo.RandomFirstGeneration(), PlantHueInfo.RandomFirstGeneration(), false)
-        {
-        }
+	public class Seed : Item
+	{
+		private PlantType m_PlantType;
+		private PlantHue m_PlantHue;
+		private bool m_ShowType;
 
-        [Constructable]
-        public Seed(PlantType plantType, PlantHue plantHue, bool showType)
-            : base(0xDCF)
-        {
-            this.Weight = 1.0;
-            this.Stackable = Core.SA;
+		[CommandProperty( AccessLevel.GameMaster )]
+		public PlantType PlantType
+		{
+			get { return m_PlantType; }
+			set
+			{
+				m_PlantType = value;
+				InvalidateProperties();
+			}
+		}
 
-            this.m_PlantType = plantType;
-            this.m_PlantHue = plantHue;
-            this.m_ShowType = showType;
+		[CommandProperty( AccessLevel.GameMaster )]
+		public PlantHue PlantHue
+		{
+			get { return m_PlantHue; }
+			set
+			{
+				m_PlantHue = value;
+				Hue = PlantHueInfo.GetInfo( value ).Hue;
+				InvalidateProperties();
+			}
+		}
 
-            this.Hue = PlantHueInfo.GetInfo(plantHue).Hue;
-        }
+		[CommandProperty( AccessLevel.GameMaster )]
+		public bool ShowType
+		{
+			get { return m_ShowType; }
+			set
+			{
+				m_ShowType = value;
+				InvalidateProperties();
+			}
+		}
 
-        public Seed(Serial serial)
-            : base(serial)
-        {
-        }
+		public override int LabelNumber{ get { return 1060810; } } // seed
 
-        [CommandProperty(AccessLevel.GameMaster)]
-        public PlantType PlantType
-        {
-            get
-            {
-                return this.m_PlantType;
-            }
-            set
-            {
-                this.m_PlantType = value;
-                this.InvalidateProperties();
-            }
-        }
-        [CommandProperty(AccessLevel.GameMaster)]
-        public PlantHue PlantHue
-        {
-            get
-            {
-                return this.m_PlantHue;
-            }
-            set
-            {
-                this.m_PlantHue = value;
-                this.Hue = PlantHueInfo.GetInfo(value).Hue;
-                this.InvalidateProperties();
-            }
-        }
-        [CommandProperty(AccessLevel.GameMaster)]
-        public bool ShowType
-        {
-            get
-            {
-                return this.m_ShowType;
-            }
-            set
-            {
-                this.m_ShowType = value;
-                this.InvalidateProperties();
-            }
-        }
-        public override int LabelNumber
-        {
-            get
-            {
-                return 1060810;
-            }
-        }// seed
-        public override bool ForceShowProperties
-        {
-            get
-            {
-                return ObjectPropertyList.Enabled;
-            }
-        }
-        public static Seed RandomBonsaiSeed()
-        {
-            return RandomBonsaiSeed(0.5);
-        }
+		public static Seed RandomBonsaiSeed()
+		{
+			return RandomBonsaiSeed( 0.5 );
+		}
 
-        public static Seed RandomBonsaiSeed(double increaseRatio)
-        {
-            return new Seed(PlantTypeInfo.RandomBonsai(increaseRatio), PlantHue.Plain, false);
-        }
+		public static Seed RandomBonsaiSeed( double increaseRatio )
+		{
+			return new Seed( PlantTypeInfo.RandomBonsai( increaseRatio ), PlantHue.Plain, false );
+		}
 
-        public static Seed RandomPeculiarSeed(int group)
-        {
-            switch ( group )
-            {
-                case 1:
-                    return new Seed(PlantTypeInfo.RandomPeculiarGroupOne(), PlantHue.Plain, false);
-                case 2:
-                    return new Seed(PlantTypeInfo.RandomPeculiarGroupTwo(), PlantHue.Plain, false);
-                case 3:
-                    return new Seed(PlantTypeInfo.RandomPeculiarGroupThree(), PlantHue.Plain, false);
-                default:
-                    return new Seed(PlantTypeInfo.RandomPeculiarGroupFour(), PlantHue.Plain, false);
-            }
-        }
+		public static Seed RandomPeculiarSeed( int group )
+		{
+			switch ( group )
+			{
+				case 1: return new Seed ( PlantTypeInfo.RandomPeculiarGroupOne(), PlantHue.Plain, false );
+				case 2: return new Seed ( PlantTypeInfo.RandomPeculiarGroupTwo(), PlantHue.Plain, false );
+				case 3: return new Seed ( PlantTypeInfo.RandomPeculiarGroupThree(), PlantHue.Plain, false );
+				default: return new Seed ( PlantTypeInfo.RandomPeculiarGroupFour(), PlantHue.Plain, false );
+			}
+		}
 
-        public override void AddNameProperty(ObjectPropertyList list)
-        {
-            string args;
-            list.Add(this.GetLabel(out args), args);
-        }
+		[Constructable]
+		public Seed() : this( PlantTypeInfo.RandomFirstGeneration(), PlantHueInfo.RandomFirstGeneration(), false )
+		{
+		}
 
-        public override void OnSingleClick(Mobile from)
-        {
-            string args;
-            this.LabelTo(from, this.GetLabel(out args), args);
-        }
+		[Constructable]
+		public Seed( PlantType plantType, PlantHue plantHue, bool showType ) : base( 0xDCF )
+		{
+			Weight = 1.0;
+			Stackable = Core.SA;
 
-        public override void OnDoubleClick(Mobile from)
-        {
-            if (!this.IsChildOf(from.Backpack))
-            {
-                from.SendLocalizedMessage(1042664); // You must have the object in your backpack to use it.
-                return;
-            }
+			m_PlantType = plantType;
+			m_PlantHue = plantHue;
+			m_ShowType = showType;
 
-            from.Target = new InternalTarget(this);
-            this.LabelTo(from, 1061916); // Choose a bowl of dirt to plant this seed in.
-        }
+			Hue = PlantHueInfo.GetInfo( plantHue ).Hue;
+		}
 
-        public override bool StackWith(Mobile from, Item dropped, bool playSound)
+		public Seed( Serial serial ) : base( serial )
+		{
+		}
+
+		public override bool ForceShowProperties{ get{ return ObjectPropertyList.Enabled; } }
+
+		public int GetLabel( out string args )
+		{
+			PlantTypeInfo typeInfo = PlantTypeInfo.GetInfo( m_PlantType );
+			PlantHueInfo hueInfo = PlantHueInfo.GetInfo( m_PlantHue );
+
+			int title;
+
+			if ( m_ShowType || typeInfo.PlantCategory == PlantCategory.Default )
+				title = hueInfo.Name;
+			else
+				title = (int)typeInfo.PlantCategory;
+
+			if ( Amount == 1 )
+			{
+				if ( m_ShowType )
+				{
+					args = String.Format( "#{0}\t#{1}", title, typeInfo.Name );
+					return typeInfo.GetSeedLabel( hueInfo );
+				}
+				else
+				{
+					args = String.Format( "#{0}", title );
+					return hueInfo.IsBright() ? 1060839 : 1060838; // [bright] ~1_val~ seed
+				}
+			}
+			else
+			{
+				if ( m_ShowType )
+				{
+					args = String.Format( "{0}\t#{1}\t#{2}", Amount, title, typeInfo.Name );
+					return typeInfo.GetSeedLabelPlural( hueInfo );
+				}
+				else
+				{
+					args = String.Format( "{0}\t#{1}", Amount, title );
+					return hueInfo.IsBright() ? 1113491 : 1113490; // ~1_amount~ [bright] ~2_val~ seeds
+				}
+			}
+		}
+
+		public override void AddNameProperty( ObjectPropertyList list )
+		{
+			string args;
+			list.Add( GetLabel( out args ), args );
+		}
+
+		public override void OnSingleClick( Mobile from )
+		{
+			string args;
+			LabelTo( from, GetLabel( out args ), args );
+		}
+
+		public override void OnDoubleClick( Mobile from )
+		{
+			if ( !IsChildOf( from.Backpack ) )
+			{
+				from.SendLocalizedMessage( 1042664 ); // You must have the object in your backpack to use it.
+				return;
+			}
+
+			from.Target = new InternalTarget( this );
+			LabelTo( from, 1061916 ); // Choose a bowl of dirt to plant this seed in.
+		}
+
+        public override bool WillStack(Mobile from, Item dropped)
         {
             if (dropped is Seed)
             {
                 Seed other = (Seed)dropped;
 
-                if (other.PlantType == this.m_PlantType && other.PlantHue == this.m_PlantHue && other.ShowType == this.m_ShowType)
-                    return base.StackWith(from, dropped, playSound);
+                if (other.PlantType == m_PlantType && other.PlantHue == m_PlantHue && other.ShowType == m_ShowType)
+                    return base.WillStack(from, dropped);
             }
 
             return false;
         }
 
-        public override void OnAfterDuped(Item newItem)
-        {
-            Seed newSeed = newItem as Seed;
+		public override void OnAfterDuped( Item newItem )
+		{
+			Seed newSeed = newItem as Seed;
 
-            if (newSeed == null)
-                return;
+			if ( newSeed == null )
+				return;
 
-            newSeed.PlantType = this.m_PlantType;
-            newSeed.PlantHue = this.m_PlantHue;
-            newSeed.ShowType = this.m_ShowType;
-        }
+			newSeed.PlantType = m_PlantType;
+			newSeed.PlantHue = m_PlantHue;
+			newSeed.ShowType = m_ShowType;
 
-        public override void Serialize(GenericWriter writer)
-        {
-            base.Serialize(writer);
+            base.OnAfterDuped(newItem);
+		}
 
-            writer.Write((int)1); // version
+		private class InternalTarget : Target
+		{
+			private Seed m_Seed;
 
-            writer.Write((int)this.m_PlantType);
-            writer.Write((int)this.m_PlantHue);
-            writer.Write((bool)this.m_ShowType);
-        }
+			public InternalTarget( Seed seed ) : base( -1, false, TargetFlags.None )
+			{
+				m_Seed = seed;
+				CheckLOS = false;
+			}
 
-        public override void Deserialize(GenericReader reader)
-        {
-            base.Deserialize(reader);
+			protected override void OnTarget( Mobile from, object targeted )
+			{
+				if ( m_Seed.Deleted )
+					return;
 
-            int version = reader.ReadInt();
+				if ( !m_Seed.IsChildOf( from.Backpack ) )
+				{
+					from.SendLocalizedMessage( 1042664 ); // You must have the object in your backpack to use it.
+					return;
+				}
 
-            this.m_PlantType = (PlantType)reader.ReadInt();
-            this.m_PlantHue = (PlantHue)reader.ReadInt();
-            this.m_ShowType = reader.ReadBool();
+				if ( targeted is PlantItem )
+				{
+					PlantItem plant = (PlantItem)targeted;
 
-            if (this.Weight != 1.0)
-                this.Weight = 1.0;
-
-            if (version < 1)
-                this.Stackable = Core.SA;
-        }
-
-        private int GetLabel(out string args)
-        {
-            PlantHueInfo hueInfo = PlantHueInfo.GetInfo(this.m_PlantHue);
-
-            int title = PlantTypeInfo.GetBonsaiTitle(this.m_PlantType);
-            if (title == 0) // Not a bonsai
-                title = hueInfo.Name;
-
-            int label;
-
-            if (this.Amount == 1)
-                label = this.m_ShowType ? 1061917 : 1060838; // ~1_COLOR~ ~2_TYPE~ seed : ~1_val~ seed
-            else
-                label = this.m_ShowType ? 1113492 : 1113490; // ~1_amount~ ~2_color~ ~3_type~ seeds : ~1_amount~ ~2_val~ seeds
-
-            if (hueInfo.IsBright())
-                ++label;
-
-            StringBuilder ab = new StringBuilder();
-
-            if (this.Amount != 1)
-            {
-                ab.Append(this.Amount);
-                ab.Append('\t');
-            }
-
-            ab.Append('#');
-            ab.Append(title);
-
-            if (this.m_ShowType)
-            {
-                PlantTypeInfo typeInfo = PlantTypeInfo.GetInfo(this.m_PlantType);
-
-                ab.Append("\t#");
-                ab.Append(typeInfo.Name);
-            }
-
-            args = ab.ToString();
-
-            return label;
-        }
-
-        private class InternalTarget : Target
-        {
-            private readonly Seed m_Seed;
-            public InternalTarget(Seed seed)
-                : base(-1, false, TargetFlags.None)
-            {
-                this.m_Seed = seed;
-                this.CheckLOS = false;
-            }
-
-            protected override void OnTarget(Mobile from, object targeted)
-            {
-                if (this.m_Seed.Deleted)
-                    return;
-
-                if (!this.m_Seed.IsChildOf(from.Backpack))
+					plant.PlantSeed( from, m_Seed );
+				}
+                else if (targeted is Server.Items.GardenAddonComponent)
                 {
-                    from.SendLocalizedMessage(1042664); // You must have the object in your backpack to use it.
-                    return;
-                }
+                    Server.Items.GardenAddonComponent addon = (Server.Items.GardenAddonComponent)targeted;
 
-                if (targeted is PlantItem)
-                {
-                    PlantItem plant = (PlantItem)targeted;
+                    if (addon.Plant != null)
+                        from.SendLocalizedMessage(1150367); // This plot already has a plant!
+                    else
+                    {
+                        Server.Multis.BaseHouse house = Server.Multis.BaseHouse.FindHouseAt(addon);
 
-                    plant.PlantSeed(from, this.m_Seed);
+                        if (house != null)
+                        {
+                            int fertileDirt = from.Backpack == null ? 0 : from.Backpack.GetAmount(typeof(FertileDirt), false);
+
+                            if (fertileDirt > 0)
+                                from.SendGump(new FertileDirtGump(m_Seed, fertileDirt, addon));
+                            else
+                            {
+                                RaisedGardenPlantItem dirt = new RaisedGardenPlantItem();
+                                dirt.MoveToWorld(new Point3D(addon.X, addon.Y, addon.Z + 5), addon.Map);
+
+                                dirt.PlantSeed(from, m_Seed);
+                                addon.Plant = dirt;
+                                dirt.Component = addon;
+                            }
+                        }
+                    }
                 }
                 else if (targeted is Item)
                 {
@@ -267,7 +247,38 @@ namespace Server.Engines.Plants
                 {
                     from.SendLocalizedMessage(1061919); // You must use a seed on a bowl of dirt!
                 }
-            }
-        }
-    }
+			}
+		}
+
+		public override void Serialize( GenericWriter writer )
+		{
+			base.Serialize( writer );
+
+			writer.Write( (int) 2 ); // version
+
+			writer.Write( (int) m_PlantType );
+			writer.Write( (int) m_PlantHue );
+			writer.Write( (bool) m_ShowType );
+		}
+
+		public override void Deserialize( GenericReader reader )
+		{
+			base.Deserialize( reader );
+
+			int version = reader.ReadInt();
+
+			m_PlantType = (PlantType)reader.ReadInt();
+			m_PlantHue = (PlantHue)reader.ReadInt();
+			m_ShowType = reader.ReadBool();
+
+			if ( Weight != 1.0 )
+				Weight = 1.0;
+
+			if ( version < 1 )
+				Stackable = Core.SA;
+
+			if ( version < 2 && PlantHueInfo.IsCrossable( m_PlantHue ) )
+				m_PlantHue |= PlantHue.Reproduces;
+		}
+	}
 }

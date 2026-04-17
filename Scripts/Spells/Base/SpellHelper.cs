@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+
 using Server.Engines.PartySystem;
 using Server.Guilds;
 using Server.Items;
@@ -7,11 +9,15 @@ using Server.Misc;
 using Server.Mobiles;
 using Server.Multis;
 using Server.Regions;
+using Server.Services.Virtues;
 using Server.Spells.Fifth;
 using Server.Spells.Necromancy;
 using Server.Spells.Ninjitsu;
 using Server.Spells.Seventh;
+using Server.Spells.Fourth;
 using Server.Targeting;
+using Server.Spells.SkillMasteries;
+using Server.Spells.Spellweaving;
 
 namespace Server
 {
@@ -30,14 +36,14 @@ namespace Server
             public InternalTimer(Mobile m)
                 : base(TimeSpan.FromMinutes(1.0))
             {
-                this.m_Mobile = m;
+                m_Mobile = m;
 
-                this.Priority = TimerPriority.OneSecond;
+                Priority = TimerPriority.OneSecond;
             }
 
             protected override void OnTick()
             {
-                this.m_Mobile.EndAction(typeof(DefensiveSpell));
+                m_Mobile.EndAction(typeof(DefensiveSpell));
             }
         }
     }
@@ -58,36 +64,85 @@ namespace Server.Spells
 
     public class SpellHelper
     {
-
-        #region Spell Mastery Focus
-        public static bool HasSpellMastery(Mobile m)
+        #region Spell Focus and SDI Calculations
+        private static SkillName[] _Schools =
         {
-            //Publish 71 PVP Spell damage increase cap changes. If you have GM of one school of magic and no others, you are "focused" in that school of magic and have 30% sdi cap instead of 15%.
-            List<SkillName> schools = new List<SkillName>()
-            {
-                SkillName.Magery,
-                SkillName.AnimalTaming,
-                SkillName.Musicianship,
-                SkillName.Mysticism,
-                SkillName.Spellweaving,
-                SkillName.Chivalry,
-                SkillName.Necromancy,
-                SkillName.Bushido,
-                SkillName.Ninjitsu
-            };
+            SkillName.Magery,
+            SkillName.AnimalTaming,
+            SkillName.Musicianship,
+            SkillName.Mysticism,
+            SkillName.Spellweaving,
+            SkillName.Chivalry,
+            SkillName.Necromancy,
+            SkillName.Bushido,
+            SkillName.Ninjitsu
+        };
 
-            bool spellMastery = false;
+        private static SkillName[] _TOLSchools =
+        {
+            SkillName.Magery,
+            SkillName.AnimalTaming,
+            SkillName.Musicianship,
+            SkillName.Mysticism,
+            SkillName.Spellweaving,
+            SkillName.Chivalry,
+            SkillName.Necromancy,
+            SkillName.Bushido,
+            SkillName.Ninjitsu,
+            SkillName.Parry
+        };
 
-            foreach (SkillName skill in schools)
+        public static bool HasSpellFocus(Mobile m, SkillName focus)
+        {
+            SkillName[] list = Core.TOL ? _TOLSchools : _Schools;
+
+            foreach (SkillName skill in list)
             {
-                if (m.Skills[skill].Base >= 30.0 && spellMastery)
+                if (skill != focus && m.Skills[skill].Value >= 30.0)
                     return false;
-                if (m.Skills[skill].Base >= 100.0)
-                    spellMastery = true;
             }
-            return spellMastery;
+
+            return true;
         }
-#endregion 
+
+        public static int PvPSpellDamageCap(Mobile m, SkillName castskill)
+        {
+            if (!Core.SA)
+                return 15;
+
+            if (HasSpellFocus(m, castskill))
+            {
+                return 30;
+            }
+            else
+            {
+                return Core.TOL ? 20 : 15;
+            }
+        }
+
+        public static int GetSpellDamageBonus(Mobile caster, IDamageable damageable, SkillName skill, bool playerVsPlayer)
+        {
+            Mobile target = damageable as Mobile;
+
+            int sdiBonus = AosAttributes.GetValue(caster, AosAttribute.SpellDamage);
+
+            if (target != null)
+            {
+                if (RunedSashOfWarding.IsUnderEffects(target, WardingEffect.SpellDamage))
+                    sdiBonus -= 10;
+
+                sdiBonus -= Block.GetSpellReduction(target);
+            }
+
+            // PvP spell damage increase cap of 15% from an item’s magic property, 30% if spell school focused.
+            if (Core.SE && playerVsPlayer)
+            {
+                sdiBonus = Math.Min(sdiBonus, PvPSpellDamageCap(caster, skill));
+            }
+
+            return sdiBonus;
+        }
+        #endregion 
 
         private static readonly TimeSpan AosDamageDelay = TimeSpan.FromSeconds(1.0);
         private static readonly TimeSpan OldDamageDelay = TimeSpan.FromSeconds(0.5);
@@ -140,6 +195,7 @@ namespace Server.Spells
         public static void Turn(Mobile from, object to)
         {
             IPoint3D target = to as IPoint3D;
+            int d = -1;
 
             if (target == null)
                 return;
@@ -149,42 +205,26 @@ namespace Server.Spells
                 Item item = (Item)target;
 
                 if (item.RootParent != from)
-                    from.Direction = from.GetDirectionTo(item.GetWorldLocation());
+                    d = (int)from.GetDirectionTo(item.GetWorldLocation());
             }
             else if (from != target)
             {
-                from.Direction = from.GetDirectionTo(target);
+                d = (int)from.GetDirectionTo(target);
+            }
+
+            if (d > -1)
+            {
+                from.Direction = (Direction)d;
+                from.ProcessDelta();
             }
         }
 
-        private static readonly TimeSpan CombatHeatDelay = TimeSpan.FromSeconds(30.0);
-        private static readonly bool RestrictTravelCombat = true;
-
-        public static bool CheckCombat(Mobile m)
+        public static bool CheckCombat(Mobile m, bool restrict = true)
         {
-            if (!RestrictTravelCombat)
+            if (!restrict)
                 return false;
 
-            for (int i = 0; i < m.Aggressed.Count; ++i)
-            {
-                AggressorInfo info = m.Aggressed[i];
-
-                if (info.Defender.Player && (DateTime.UtcNow - info.LastCombatTime) < CombatHeatDelay)
-                    return true;
-            }
-
-            if (Core.Expansion == Expansion.AOS)
-            {
-                for (int i = 0; i < m.Aggressors.Count; ++i)
-                {
-                    AggressorInfo info = m.Aggressors[i];
-
-                    if (info.Attacker.Player && (DateTime.UtcNow - info.LastCombatTime) < CombatHeatDelay)
-                        return true;
-                }
-            }
-
-            return false;
+            return Aggression.CheckHasAggression(m, Core.AOS);
         }
 
         public static bool AdjustField(ref Point3D p, Map map, int height, bool mobsBlock)
@@ -192,9 +232,17 @@ namespace Server.Spells
             if (map == null)
                 return false;
 
-            for (int offset = 0; offset < 10; ++offset)
+            for (int offset = 0; offset < 25; ++offset)
             {
                 Point3D loc = new Point3D(p.X, p.Y, p.Z - offset);
+
+                if (map.CanFit(loc, height, true, mobsBlock))
+                {
+                    p = loc;
+                    return true;
+                }
+
+                loc = new Point3D(p.X, p.Y, p.Z + offset);
 
                 if (map.CanFit(loc, height, true, mobsBlock))
                 {
@@ -204,6 +252,50 @@ namespace Server.Spells
             }
 
             return false;
+        }
+
+        public static bool CheckField(Point3D p, Map map)
+        {
+            if (map == null)
+                return false;
+
+            IPooledEnumerable eable = map.GetItemsInRange(p, 0);
+
+            foreach (Item item in eable)
+            {
+                Type t = item.GetType();
+
+                if(t.IsDefined(typeof(DispellableFieldAttribute), false) || t.IsDefined(typeof(DispellableFieldAttribute), true))
+                {
+                    eable.Free();
+                    return false;
+                }
+            }
+
+            eable.Free();
+            return true;
+        }
+
+        public static bool CheckWater(Point3D p, Map map)
+        {
+            var landTile = map.Tiles.GetLandTile(p.X, p.Y);
+
+            if (landTile.Z == p.Z && ((landTile.ID >= 168 && landTile.ID <= 171) || (landTile.ID >= 310 && landTile.ID <= 311)))
+            {
+                return false;
+            }
+
+            var tiles = map.Tiles.GetStaticTiles(p.X, p.Y, true);
+
+            foreach (var tile in tiles)
+            {
+                if (tile.Z == p.Z && tile.ID >= 0x1796 && tile.ID <= 0x17B2)
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 		
         public static bool CanRevealCaster(Mobile m)
@@ -255,9 +347,9 @@ namespace Server.Spells
             return true;
         }
 
-        public static bool AddStatBonus(Mobile caster, Mobile target, StatType type)
+        public static bool AddStatBonus(Mobile caster, Mobile target, bool blockSkill, StatType type)
         {
-            return AddStatBonus(caster, target, type, GetOffset(caster, target, type, false), GetDuration(caster, target));
+            return AddStatBonus(caster, target, type, GetOffset(caster, target, type, false, blockSkill), GetDuration(caster, target));
         }
 
         public static bool AddStatBonus(Mobile caster, Mobile target, StatType type, int bonus, TimeSpan duration)
@@ -266,8 +358,11 @@ namespace Server.Spells
             string name = String.Format("[Magic] {0} Buff", type);
 
             StatMod mod = target.GetStatMod(name);
-			if (mod != null)
-				offset = Math.Max(mod.Offset, offset);
+
+            if (mod != null)
+            {
+                offset = Math.Max(mod.Offset, offset);
+            }
 
             target.AddStatMod(new StatMod(type, name, offset, duration));
 			Timer.DelayCall(duration, RemoveStatOffsetCallback, target);
@@ -275,9 +370,28 @@ namespace Server.Spells
             return true;
         }
 
+        public static int GetBuffOffset(Mobile m, StatType type)
+        {
+            string name = String.Format("[Magic] {0} Buff", type);
+
+            StatMod mod = m.GetStatMod(name);
+
+            return mod != null ? mod.Offset : 0;
+        }
+
         public static bool AddStatCurse(Mobile caster, Mobile target, StatType type)
         {
-            return AddStatCurse(caster, target, type, GetOffset(caster, target, type, true), GetDuration(caster, target));
+            return AddStatCurse(caster, target, type, true);
+        }
+
+        public static bool AddStatCurse(Mobile caster, Mobile target, StatType type, bool blockSkill)
+        {
+            return AddStatCurse(caster, target, type, GetOffset(caster, target, type, true, blockSkill), TimeSpan.Zero);
+        }
+
+        public static bool AddStatCurse(Mobile caster, Mobile target, StatType type, bool blockSkill, int offset)
+        {
+            return AddStatCurse(caster, target, type, offset, TimeSpan.Zero);
         }
 
         public static bool AddStatCurse(Mobile caster, Mobile target, StatType type, int curse, TimeSpan duration)
@@ -286,35 +400,38 @@ namespace Server.Spells
             string name = String.Format("[Magic] {0} Curse", type);
 
             StatMod mod = target.GetStatMod(name);
+
 			if (mod != null)
 				offset = Math.Max(mod.Offset, offset);
+
 			offset *= -1;
 
-            target.AddStatMod(new StatMod(type, name, offset, duration));
-			Timer.DelayCall(duration, RemoveStatOffsetCallback, target);
+            target.AddStatMod(new StatMod(type, name, offset, TimeSpan.Zero));
 			return true;
         }
 
         public static TimeSpan GetDuration(Mobile caster, Mobile target)
         {
             if (Core.AOS)
-                return TimeSpan.FromSeconds(((6 * caster.Skills.EvalInt.Fixed) / 50) + 1);
+            {
+                int span = (((6 * caster.Skills.EvalInt.Fixed) / 50) + 1);
+
+                if (caster.Spell is CurseSpell && Spells.SkillMasteries.ResilienceSpell.UnderEffects(target))
+                    span /= 2;
+
+                return TimeSpan.FromSeconds(span);
+            }
 
             return TimeSpan.FromSeconds(caster.Skills[SkillName.Magery].Value * 1.2);
         }
 
-        private static bool m_DisableSkillCheck;
-
-        public static bool DisableSkillCheck
+        public static int GetCurseOffset(Mobile m, StatType type)
         {
-            get
-            {
-                return m_DisableSkillCheck;
-            }
-            set
-            {
-                m_DisableSkillCheck = value;
-            }
+            string name = String.Format("[Magic] {0} Curse", type);
+
+            StatMod mod = m.GetStatMod(name);
+
+            return mod != null ? mod.Offset : 0;
         }
 
         public static double GetOffsetScalar(Mobile caster, Mobile target, bool curse)
@@ -322,7 +439,10 @@ namespace Server.Spells
             double percent;
 
             if (curse)
-                percent = 8 + (caster.Skills.EvalInt.Fixed / 100) - (target.Skills.MagicResist.Fixed / 100);
+            {
+                double resistFixed = target.Skills.MagicResist.Fixed - (EvilOmenSpell.GetResistMalus(target) * 10);
+                percent = 8 + (caster.Skills.EvalInt.Fixed / 100) - (resistFixed / 100);
+            }
             else
                 percent = 1 + (caster.Skills.EvalInt.Fixed / 100);
 
@@ -334,13 +454,14 @@ namespace Server.Spells
             return percent;
         }
 
-        public static int GetOffset(Mobile caster, Mobile target, StatType type, bool curse)
+        public static int GetOffset(Mobile caster, Mobile target, StatType type, bool curse, bool blockSkill)
         {
             if (Core.AOS)
             {
-                if (!m_DisableSkillCheck)
+                if (!blockSkill)
                 {
-                    caster.CheckSkill(SkillName.EvalInt, 0.0, 120.0);
+                    //caster.CheckSkill(SkillName.EvalInt, 0.0, 120.0);
+                    // This is handled in Spell.cs
 
                     if (curse)
                         target.CheckSkill(SkillName.MagicResist, 0.0, 120.0);
@@ -351,11 +472,11 @@ namespace Server.Spells
                 switch( type )
                 {
                     case StatType.Str:
-                        return (int)(target.RawStr * percent);
+                        return (int)Math.Ceiling(target.RawStr * percent);
                     case StatType.Dex:
-                        return (int)(target.RawDex * percent);
+                        return (int)Math.Ceiling(target.RawDex * percent);
                     case StatType.Int:
-                        return (int)(target.RawInt * percent);
+                        return (int)Math.Ceiling(target.RawInt * percent);
                 }
             }
 
@@ -389,48 +510,44 @@ namespace Server.Spells
         public static bool ValidIndirectTarget(Mobile from, Mobile to)
         {
             if (from == to)
+            {
                 return true;
+            }
 
             if (to.Hidden && to.AccessLevel > from.AccessLevel)
+            {
                 return false;
-
-            #region Dueling
-            PlayerMobile pmFrom = from as PlayerMobile;
-            PlayerMobile pmTarg = to as PlayerMobile;
-
-            if (pmFrom == null && from is BaseCreature)
-            {
-                BaseCreature bcFrom = (BaseCreature)from;
-
-                if (bcFrom.Summoned)
-                    pmFrom = bcFrom.SummonMaster as PlayerMobile;
             }
 
-            if (pmTarg == null && to is BaseCreature)
+            if (Server.Engines.ArenaSystem.PVPArenaSystem.IsFriendly(from, to))
             {
-                BaseCreature bcTarg = (BaseCreature)to;
-
-                if (bcTarg.Summoned)
-                    pmTarg = bcTarg.SummonMaster as PlayerMobile;
+                return false;
             }
 
-            if (pmFrom != null && pmTarg != null)
+            if (from is BaseCreature && ((BaseCreature)from).GetMaster() != null)
             {
-                if (pmFrom.DuelContext != null && pmFrom.DuelContext == pmTarg.DuelContext && pmFrom.DuelContext.Started && pmFrom.DuelPlayer != null && pmTarg.DuelPlayer != null)
-                    return (pmFrom.DuelPlayer.Participant != pmTarg.DuelPlayer.Participant);
+                from = ((BaseCreature)from).GetMaster();
             }
-            #endregion
+
+            if (to is BaseCreature && ((BaseCreature)to).GetMaster() != null)
+            {
+                to = ((BaseCreature)to).GetMaster();
+            }
 
             Guild fromGuild = GetGuildFor(from);
             Guild toGuild = GetGuildFor(to);
 
             if (fromGuild != null && toGuild != null && (fromGuild == toGuild || fromGuild.IsAlly(toGuild)))
+            {
                 return false;
+            }
 
             Party p = Party.Get(from);
 
             if (p != null && p.Contains(to))
+            {
                 return false;
+            }
 
             if (to is BaseCreature)
             {
@@ -439,10 +556,14 @@ namespace Server.Spells
                 if (c.Controlled || c.Summoned)
                 {
                     if (c.ControlMaster == from || c.SummonMaster == from)
+                    {
                         return false;
+                    }
 
                     if (p != null && (p.Contains(c.ControlMaster) || p.Contains(c.SummonMaster)))
+                    {
                         return false;
+                    }
                 }
             }
 
@@ -453,21 +574,97 @@ namespace Server.Spells
                 if (c.Controlled || c.Summoned)
                 {
                     if (c.ControlMaster == to || c.SummonMaster == to)
+                    {
                         return false;
+                    }
 
                     p = Party.Get(to);
 
                     if (p != null && (p.Contains(c.ControlMaster) || p.Contains(c.SummonMaster)))
+                    {
                         return false;
+                    }
+                }
+                else
+                {
+                    if (to.Player)
+                    {
+                        return true;
+                    }
+                    if (to is BaseCreature && (((BaseCreature)to).Controlled || ((BaseCreature)to).Summoned) && ((BaseCreature)to).GetMaster() is PlayerMobile)
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            // Non-enemy monsters will no longer flag area spells on each other
+            if (from is BaseCreature && to is BaseCreature)
+            {
+                BaseCreature fromBC = (BaseCreature)from;
+                BaseCreature toBC = (BaseCreature)to;
+
+                if (fromBC.GetMaster() is BaseCreature)
+                    fromBC = fromBC.GetMaster() as BaseCreature;
+
+                if (toBC.GetMaster() is BaseCreature)
+                    toBC = toBC.GetMaster() as BaseCreature;
+
+                if (toBC.IsEnemy(fromBC))   //Natural Enemies
+                {
+                    return true;
+                }
+
+                //All involved are monsters- no damage. If falls through this statement, normal noto rules apply
+                if (!toBC.Controlled && !toBC.Summoned && !fromBC.Controlled && !fromBC.Summoned) //All involved are monsters- no damage
+                {
+                    return false;
                 }
             }
 
             if (to is BaseCreature && !((BaseCreature)to).Controlled && ((BaseCreature)to).InitialInnocent)
+            {
                 return true;
+            }
 
-            int noto = Notoriety.Compute(from, to);
+            return (Notoriety.Compute(from, to) != Notoriety.Innocent || from.Murderer);
+        }
 
-            return (noto != Notoriety.Innocent || from.Kills >= 5);
+        public static IEnumerable<IDamageable> AcquireIndirectTargets(Mobile caster, IPoint3D p, Map map, int range)
+        {
+            return AcquireIndirectTargets(caster, p, map, range, true);
+        }
+
+        public static IEnumerable<IDamageable> AcquireIndirectTargets(Mobile caster, IPoint3D p, Map map, int range, bool losCheck)
+        {  
+            if (map == null)
+            {
+                yield break;
+            }
+
+            IPooledEnumerable eable = map.GetObjectsInRange(new Point3D(p), range);
+
+            foreach (var id in eable.OfType<IDamageable>())
+            {
+                if (id == caster)
+                {
+                    continue;
+                }
+
+                if (!id.Alive || (losCheck && !caster.InLOS(id)) || !caster.CanBeHarmful(id, false))
+                {
+                    continue;
+                }
+
+                if (id is Mobile && !SpellHelper.ValidIndirectTarget(caster, (Mobile)id))
+                {
+                    continue;
+                }
+
+                yield return id;
+            }
+
+            eable.Free();
         }
 
         private static readonly int[] m_Offsets = new int[]
@@ -593,6 +790,8 @@ namespace Server.Spells
             return false;
         }
 
+        public static bool RestrictRedTravel { get { return Config.Get("General.RestrictRedsToFel", false); } }
+
         private delegate bool TravelValidator(Map map, Point3D loc);
 
         private static readonly TravelValidator[] m_Validators = new TravelValidator[]
@@ -615,19 +814,24 @@ namespace Server.Spells
             new TravelValidator(IsLampRoom),
             new TravelValidator(IsGuardianRoom),
             new TravelValidator(IsHeartwood),
-            new TravelValidator(IsMLDungeon)
+            new TravelValidator(IsMLDungeon),
+            new TravelValidator(IsSADungeon),
+            new TravelValidator(IsTombOfKings),
+            new TravelValidator(IsMazeOfDeath),
+            new TravelValidator(IsSAEntrance),
+            new TravelValidator(IsEodon),
         };
 
         private static readonly bool[,] m_Rules = new bool[,]
         {
-					/*T2A(Fel),	Khaldun,	Ilshenar,	Wind(Tram),	Wind(Fel),	Dungeons(Fel),	Solen(Tram),	Solen(Fel),	CrystalCave(Malas),	Gauntlet(Malas),	Gauntlet(Ferry),	SafeZone,	Stronghold,	ChampionSpawn,	Dungeons(Tokuno[Malas]),	LampRoom(Doom),	GuardianRoom(Doom),	Heartwood,	MLDungeons */
-/* Recall From */	{ false,	false,		true,		true,		false,		false,			true,			false,		false,				false,				false,				true,		true,		false,			true,						false,			false,				false,		false },
-/* Recall To */		{ false,	false,		false,		false,		false,		false,			false,			false,		false,				false,				false,				false,		false,		false,			false,						false,			false,				false,		false },
-/* Gate From */		{ false,	false,		false,		false,		false,		false,			false,			false,		false,				false,				false,				false,		false,		false,			false,						false,			false,				false,		false },
-/* Gate To */		{ false,	false,		false,		false,		false,		false,			false,			false,		false,				false,				false,				false,		false,		false,			false,						false,			false,				false,		false },
-/* Mark In */		{ false,	false,		false,		false,		false,		false,			false,			false,		false,				false,				false,				false,		false,		false,			false,						false,			false,				false,		false },
-/* Tele From */		{ true,		true,		true,		true,		true,		true,			true,			true,		false,				true,				true,				true,		false,		true,			true,						true,			true,				false,		true },
-/* Tele To */		{ true,		true,		true,		true,		true,		true,			true,			true,		false,				true,				false,				false,		false, 		true,			true,						true,			true,				false,		false },
+					/*T2A(Fel),	Khaldun,	Ilshenar,	Wind(Tram),	Wind(Fel),	Dungeons(Fel),	Solen(Tram),	Solen(Fel),	CrystalCave(Malas),	Gauntlet(Malas),	Gauntlet(Ferry),	SafeZone,	Stronghold,	ChampionSpawn,	Dungeons(Tokuno[Malas]),	LampRoom(Doom),	GuardianRoom(Doom),	Heartwood,	MLDungeons, SA Dungeons		Tomb of Kings	Maze of Death	SA Entrance,    Eodon*/
+/* Recall From */	{ false,	false,		true,		true,		false,		false,			true,			false,		false,				false,				false,				true,		true,		false,			true,						false,			false,				false,		false,      true,           true,           false,          false,          true} ,
+/* Recall To */		{ false,	false,		false,		false,		false,		false,			false,			false,		false,				false,				false,				false,		false,		false,			false,						false,			false,				false,		false,      false,          false,          false,          false,          false },
+/* Gate From */		{ false,	false,		false,		false,		false,		false,			false,			false,		false,				false,				false,				false,		false,		false,			false,						false,			false,				false,		false,      false,          false,          false,          false,          false },
+/* Gate To */		{ false,	false,		false,		false,		false,		false,			false,			false,		false,				false,				false,				false,		false,		false,			false,						false,			false,				false,		false,      false,          false,          false,          false,          false },
+/* Mark In */		{ false,	false,		false,		false,		false,		false,			false,			false,		false,				false,				false,				false,		false,		false,			false,						false,			false,				false,		false,      false,          false,          false,          false,          false },
+/* Tele From */		{ true,		true,		true,		true,		true,		true,			true,			true,		false,				true,				true,				true,		false,		true,			true,						true,			true,				false,		true,       true,           false,          false,          false,          true },
+/* Tele To */		{ true,		true,		true,		true,		true,		true,			true,			true,		false,				true,				false,				false,		false, 		true,			true,						true,			true,				false,		false,      true,           false,          false,          false,          true },
         };
 
         public static void SendInvalidMessage(Mobile caster, TravelCheckType type)
@@ -663,28 +867,36 @@ namespace Server.Spells
                 return false;
             }
 
-            if (caster != null && caster.IsPlayer())
+            if (caster != null)
             {
-				// Jail region
-				if (caster.Region.IsPartOf(typeof(Regions.Jail)))
-				{
-					caster.SendLocalizedMessage(1114345); // You'll need a better jailbreak plan than that!
-					return false;
-				}
-				else if(caster.Region is Regions.GreenAcres)
-				{
-					caster.SendLocalizedMessage(502360); // You cannot teleport into that area.
-					return false;
-				}
-            }
+                if (caster.IsPlayer())
+                {
+                    // Jail region
+                    if (caster.Region.IsPartOf<Regions.Jail>())
+                    {
+                        caster.SendLocalizedMessage(1114345); // You'll need a better jailbreak plan than that!
+                        return false;
+                    }
+                    else if (caster.Region is Regions.GreenAcres)
+                    {
+                        caster.SendLocalizedMessage(502360); // You cannot teleport into that area.
+                        return false;
+                    }
+                }
 
-            // Always allow monsters to teleport
-            if (caster is BaseCreature && (type == TravelCheckType.TeleportTo || type == TravelCheckType.TeleportFrom))
-            {
-                BaseCreature bc = (BaseCreature)caster;
+                // Always allow monsters to teleport
+                if (caster is BaseCreature && (type == TravelCheckType.TeleportTo || type == TravelCheckType.TeleportFrom))
+                {
+                    BaseCreature bc = (BaseCreature) caster;
 
-                if (!bc.Controlled && !bc.Summoned)
-                    return true;
+                    if (!bc.Controlled && !bc.Summoned)
+                        return true;
+                }
+
+                if (Siege.SiegeShard && !Siege.CheckTravel(caster, loc, map, type))
+                {
+                    return false;
+                }
             }
 
             m_TravelCaster = caster;
@@ -693,13 +905,37 @@ namespace Server.Spells
             int v = (int)type;
             bool isValid = true;
 
-            #region Mondain's Legacy
-            if (m_TravelCaster != null && m_TravelCaster.Region != null)
+            if (caster != null)
             {
-                if (m_TravelCaster.Region.IsPartOf("Blighted Grove") && loc.Z < -10)
+                BaseRegion destination = Region.Find(loc, map) as BaseRegion;
+                BaseRegion current = Region.Find(caster.Location, map) as BaseRegion;
+
+                if (destination != null && !destination.CheckTravel(caster, loc, type))
                     isValid = false;
+
+                if (isValid && current != null && !current.CheckTravel(caster, loc, type))
+                    isValid = false;
+
+                #region Mondain's Legacy
+
+                if (caster.Region != null)
+                {
+                    if (caster.Region.IsPartOf("Blighted Grove") && loc.Z < -10)
+                        isValid = false;
+                }
+
+                if ((int)type <= 4 && (IsNewDungeon(caster.Map, caster.Location) || IsNewDungeon(map, loc)))
+                    isValid = false;
+                
+                #endregion
+
+                #region High Seas
+
+                if (BaseBoat.IsDriving(caster))
+                    return false;
+
+                #endregion
             }
-            #endregion
 
             for (int i = 0; isValid && i < m_Validators.Length; ++i)
                 isValid = (m_Rules[v, i] || !m_Validators[i](map, loc));
@@ -708,6 +944,32 @@ namespace Server.Spells
                 SendInvalidMessage(caster, type);
 
             return isValid;
+        }
+
+        public static bool CheckCanTravel(Mobile m)
+        {
+            if (Factions.Sigil.ExistsOn(m))
+            {
+                m.SendLocalizedMessage(1061632); // You can't do that while carrying the sigil.
+                return false;
+            }
+            else if (m.Criminal)
+            {
+                m.SendLocalizedMessage(1005561, "", 0x22); // Thou'rt a criminal and cannot escape so easily.
+                return false;
+            }
+            else if (CheckCombat(m))
+            {
+                m.SendLocalizedMessage(1005564, "", 0x22); // Wouldst thou flee during the heat of battle??
+                return false;
+            }
+            else if (Server.Misc.WeightOverloading.IsOverloaded(m))
+            {
+                m.SendLocalizedMessage(502359, "", 0x22); // Thou art too encumbered to move.
+                return false;
+            }
+
+            return true;
         }
 
         public static bool IsWindLoc(Point3D loc)
@@ -732,21 +994,14 @@ namespace Server.Spells
             return (map == Map.Ilshenar);
         }
 
-        public static bool IsSolenHiveLoc(Point3D loc)
-        {
-            int x = loc.X, y = loc.Y;
-
-            return (x >= 5640 && y >= 1776 && x < 5935 && y < 2039);
-        }
-
         public static bool IsTrammelSolenHive(Map map, Point3D loc)
         {
-            return (map == Map.Trammel && IsSolenHiveLoc(loc));
+            return map == Map.Trammel && Region.Find(loc, map).Name == "Solen Hives";
         }
 
         public static bool IsFeluccaSolenHive(Map map, Point3D loc)
         {
-            return (map == Map.Felucca && IsSolenHiveLoc(loc));
+            return map == Map.Felucca && Region.Find(loc, map).Name == "Solen Hives";
         }
 
         public static bool IsFeluccaT2A(Map map, Point3D loc)
@@ -766,7 +1021,7 @@ namespace Server.Spells
         public static bool IsFeluccaDungeon(Map map, Point3D loc)
         {
             Region region = Region.Find(loc, map);
-            return (region.IsPartOf(typeof(DungeonRegion)) && region.Map == Map.Felucca);
+            return (region.IsPartOf<DungeonRegion>() && region.Map == Map.Felucca);
         }
 
         public static bool IsKhaldun(Map map, Point3D loc)
@@ -789,21 +1044,6 @@ namespace Server.Spells
 
         public static bool IsSafeZone(Map map, Point3D loc)
         {
-            #region Duels
-            if (Region.Find(loc, map).IsPartOf(typeof(Engines.ConPVP.SafeZone)))
-            {
-                if (m_TravelType == TravelCheckType.TeleportTo || m_TravelType == TravelCheckType.TeleportFrom)
-                {
-                    PlayerMobile pm = m_TravelCaster as PlayerMobile;
-
-                    if (pm != null && pm.DuelPlayer != null && !pm.DuelPlayer.Eliminated)
-                        return true;
-                }
-
-                return true;
-            }
-            #endregion
-
             return false;
         }
 
@@ -815,12 +1055,12 @@ namespace Server.Spells
             if ( Factions.Faction.Find( m_TravelCaster, true, true ) != null )
             return false;
             }*/
-            return (Region.Find(loc, map).IsPartOf(typeof(Factions.StrongholdRegion)));
+            return (Region.Find(loc, map).IsPartOf<Factions.StrongholdRegion>());
         }
 
         public static bool IsChampionSpawn(Map map, Point3D loc)
         {
-            return (Region.Find(loc, map).IsPartOf(typeof(Engines.CannedEvil.ChampionSpawnRegion)));
+            return (Region.Find(loc, map).IsPartOf<Engines.CannedEvil.ChampionSpawnRegion>());
         }
 
         public static bool IsDoomFerry(Map map, Point3D loc)
@@ -895,6 +1135,52 @@ namespace Server.Spells
             return MondainsLegacy.IsMLRegion(Region.Find(loc, map));
         }
 
+        public static bool IsTombOfKings(Map map, Point3D loc)
+        {
+            return (Region.Find(loc, map).IsPartOf(typeof(TombOfKingsRegion)));
+        }
+
+        public static bool IsMazeOfDeath(Map map, Point3D loc)
+        {
+            return (Region.Find(loc, map).IsPartOf(typeof(MazeOfDeathRegion)));
+        }
+
+        public static bool IsSAEntrance(Map map, Point3D loc)
+        {
+            return map == Map.TerMur && loc.X >= 1122 && loc.Y >= 1067 && loc.X <= 1144 && loc.Y <= 1086;
+        }
+
+        public static bool IsSADungeon(Map map, Point3D loc)
+        {
+            if (map != Map.TerMur)
+                return false;
+
+            Region region = Region.Find(loc, map);
+            return (region.IsPartOf(typeof(DungeonRegion)) && !region.IsPartOf(typeof(TombOfKingsRegion)));
+        }
+
+        public static bool IsEodon(Map map, Point3D loc)
+        {
+            if (map == Map.Felucca && loc.X >= 6975 && loc.X <= 7042 && loc.Y >= 2048 && loc.Y <= 2115)
+                return true;
+
+            return map == Map.TerMur && loc.X >= 0 && loc.X <= 1087 && loc.Y >= 1344 && loc.Y <= 2495;
+        }
+
+        public static bool IsNewDungeon(Map map, Point3D loc)
+        {
+            if (map == Map.Trammel && Core.SA)
+            {
+                Region r = Region.Find(loc, map);
+
+                // Revamped Dungeons with specific rules
+                if (r.Name == "Void Pool" || r.Name == "Wrong")
+                    return true;
+            }
+
+            return false;
+        }
+
         public static bool IsInvalid(Map map, Point3D loc)
         {
             if (map == null || map == Map.Internal)
@@ -920,19 +1206,7 @@ namespace Server.Spells
 
             if (map == null)
                 return false;
-
-            #region Dueling
-            Engines.ConPVP.SafeZone sz = (Engines.ConPVP.SafeZone)Region.Find(loc, map).GetRegion(typeof(Engines.ConPVP.SafeZone));
-
-            if (sz != null)
-            {
-                PlayerMobile pm = (PlayerMobile)caster;
-
-                if (pm == null || pm.DuelContext == null || !pm.DuelContext.Started || pm.DuelPlayer == null || pm.DuelPlayer.Eliminated)
-                    return true;
-            }
-            #endregion
-
+            
             GuardedRegion reg = (GuardedRegion)Region.Find(loc, map).GetRegion(typeof(GuardedRegion));
 
             return (reg != null && !reg.IsDisabled());
@@ -958,13 +1232,94 @@ namespace Server.Spells
         }
 
         //magic reflection
-        public static void CheckReflect(int circle, Mobile caster, ref Mobile target)
+        public static bool CheckReflect(int circle, Mobile caster, ref Mobile target)
         {
-            CheckReflect(circle, ref caster, ref target);
+            IDamageable c = caster as IDamageable;
+            IDamageable t = target as IDamageable;
+
+            bool reflect = CheckReflect(circle, ref c, ref t);
+
+            if (c is Mobile)
+                caster = (Mobile)c;
+
+            if (t is Mobile)
+                target = (Mobile)t;
+
+            return reflect;
         }
 
-        public static void CheckReflect(int circle, ref Mobile caster, ref Mobile target)
+        public static bool CheckReflect(int circle, IDamageable caster, ref Mobile target)
         {
+            IDamageable t = target as IDamageable;
+
+            bool reflect = CheckReflect(circle, ref caster, ref t);
+
+            if (t is Mobile)
+                caster = (Mobile)t;
+
+            return reflect;
+        }
+
+        public static bool CheckReflect(int circle, Mobile caster, ref IDamageable target)
+        {
+            IDamageable c = caster as IDamageable;
+
+            bool reflect = CheckReflect(circle, ref c, ref target);
+
+            if (c is Mobile)
+                caster = (Mobile)c;
+
+            return reflect;
+        }
+
+        public static bool CheckReflect(int circle, ref Mobile caster, ref IDamageable target, DamageType type = DamageType.Spell)
+        {
+            IDamageable c = caster as IDamageable;
+
+            bool reflect = CheckReflect(circle, ref c, ref target);
+
+            if (c is Mobile)
+                caster = (Mobile)c;
+
+            return reflect;
+        }
+
+        public static bool CheckReflect(int circle, ref Mobile caster, ref Mobile target)
+        {
+            return CheckReflect(circle, caster, ref target);
+        }
+
+        public static bool CheckReflect(int circle, ref IDamageable source, ref IDamageable defender, DamageType type = DamageType.Spell)
+        {
+            bool reflect = false;
+            Mobile target = defender as Mobile;
+
+            if (Core.AOS && type >= DamageType.Spell)
+            {
+                if (target != null && defender is Mobile)
+                {
+                    Clone clone = MirrorImage.GetDeflect(target, (Mobile)defender);
+
+                    if (clone != null)
+                    {
+                        defender = clone;
+                        return false;
+                    }
+                }
+                else if (defender is DamageableItem && ((DamageableItem)defender).CheckReflect(circle, source))
+                {
+                    IDamageable temp = source;
+                    source = defender;
+                    defender = temp;
+                    return true;
+                }
+            }
+
+            Mobile caster = source as Mobile;
+
+            if (target == null || caster == null)
+                return false;
+
             if (target.MagicDamageAbsorb > 0)
             {
                 ++circle;
@@ -973,7 +1328,7 @@ namespace Server.Spells
 
                 // This order isn't very intuitive, but you have to nullify reflect before target gets switched
 
-                bool reflect = (target.MagicDamageAbsorb >= 0);
+                reflect = (target.MagicDamageAbsorb >= 0);
 
                 if (target is BaseCreature)
                     ((BaseCreature)target).CheckReflect(caster, ref reflect);
@@ -989,13 +1344,13 @@ namespace Server.Spells
                     target.FixedEffect(0x37B9, 10, 5);
 
                     Mobile temp = caster;
-                    caster = target;
+                    source = target;
                     target = temp;
                 }
             }
             else if (target is BaseCreature)
             {
-                bool reflect = false;
+                reflect = false;
 
                 ((BaseCreature)target).CheckReflect(caster, ref reflect);
 
@@ -1003,11 +1358,13 @@ namespace Server.Spells
                 {
                     target.FixedEffect(0x37B9, 10, 5);
 
-                    Mobile temp = caster;
-                    caster = target;
-                    target = temp;
+                    IDamageable temp = source;
+                    source = defender;
+                    defender = temp;
                 }
             }
+
+            return reflect;
         }
 
         public static void Damage(Spell spell, Mobile target, double damage)
@@ -1055,73 +1412,85 @@ namespace Server.Spells
             }
         }
 
-        public static void Damage(Spell spell, Mobile target, double damage, int phys, int fire, int cold, int pois, int nrgy)
+        public static void Damage(Spell spell, IDamageable damageable, double damage, int phys, int fire, int cold, int pois, int nrgy)
         {
             TimeSpan ts = GetDamageDelayForSpell(spell);
 
-            Damage(spell, ts, target, spell.Caster, damage, phys, fire, cold, pois, nrgy, DFAlgorithm.Standard);
+            Damage(spell, ts, damageable, spell.Caster, damage, phys, fire, cold, pois, nrgy, DFAlgorithm.Standard);
         }
 
-        public static void Damage(Spell spell, Mobile target, double damage, int phys, int fire, int cold, int pois, int nrgy, DFAlgorithm dfa)
+        public static void Damage(Spell spell, IDamageable damageable, double damage, int phys, int fire, int cold, int pois, int nrgy, DFAlgorithm dfa)
         {
             TimeSpan ts = GetDamageDelayForSpell(spell);
 
-            Damage(spell, ts, target, spell.Caster, damage, phys, fire, cold, pois, nrgy, dfa);
+            Damage(spell, ts, damageable, spell.Caster, damage, phys, fire, cold, pois, nrgy, dfa);
         }
 
-        public static void Damage(Spell spell, Mobile target, double damage, int phys, int fire, int cold, int pois, int nrgy, int chaos, int direct)
+        public static void Damage(Spell spell, IDamageable damageable, double damage, int phys, int fire, int cold, int pois, int nrgy, int chaos, int direct)
         {
             TimeSpan ts = GetDamageDelayForSpell(spell);
 
-            Damage(spell, ts, target, spell.Caster, damage, phys, fire, cold, pois, nrgy, DFAlgorithm.Standard, chaos, direct);
+            Damage(spell, ts, damageable, spell.Caster, damage, phys, fire, cold, pois, nrgy, DFAlgorithm.Standard, chaos, direct);
         }
 
-        public static void Damage(TimeSpan delay, Mobile target, double damage, int phys, int fire, int cold, int pois, int nrgy)
+        public static void Damage(TimeSpan delay, IDamageable damageable, double damage, int phys, int fire, int cold, int pois, int nrgy)
         {
-            Damage(delay, target, null, damage, phys, fire, cold, pois, nrgy);
+            Damage(delay, damageable, null, damage, phys, fire, cold, pois, nrgy);
         }
 
-        public static void Damage(TimeSpan delay, Mobile target, double damage, int phys, int fire, int cold, int pois, int nrgy, int chaos, int direct)
+        public static void Damage(TimeSpan delay, IDamageable damageable, double damage, int phys, int fire, int cold, int pois, int nrgy, int chaos, int direct)
         {
-            Damage(null, delay, target, null, damage, phys, fire, cold, pois, nrgy, DFAlgorithm.Standard, chaos, direct);
+            Damage(null, delay, damageable, null, damage, phys, fire, cold, pois, nrgy, DFAlgorithm.Standard, chaos, direct);
         }
 
-        public static void Damage(TimeSpan delay, Mobile target, Mobile from, double damage, int phys, int fire, int cold, int pois, int nrgy)
+        public static void Damage(TimeSpan delay, IDamageable damageable, Mobile from, double damage, int phys, int fire, int cold, int pois, int nrgy)
         {
-            Damage(delay, target, from, damage, phys, fire, cold, pois, nrgy, DFAlgorithm.Standard);
+            Damage(delay, damageable, from, damage, phys, fire, cold, pois, nrgy, DFAlgorithm.Standard);
         }
 
-        public static void Damage(TimeSpan delay, Mobile target, Mobile from, double damage, int phys, int fire, int cold, int pois, int nrgy, DFAlgorithm dfa)
+        public static void Damage(TimeSpan delay, IDamageable damageable, Mobile from, double damage, int phys, int fire, int cold, int pois, int nrgy, DFAlgorithm dfa)
         {
-            Damage(null, delay, target, from, damage, phys, fire, cold, pois, nrgy, dfa);
+            Damage(null, delay, damageable, from, damage, phys, fire, cold, pois, nrgy, dfa);
         }
 
-        public static void Damage(Spell spell, TimeSpan delay, Mobile target, Mobile from, double damage, int phys, int fire, int cold, int pois, int nrgy, DFAlgorithm dfa, int chaos = 0, int direct = 0)
+        public static void Damage(Spell spell, TimeSpan delay, IDamageable damageable, Mobile from, double damage, int phys, int fire, int cold, int pois, int nrgy, DFAlgorithm dfa, int chaos = 0, int direct = 0)
         {
+            Mobile target = damageable as Mobile;
             int iDamage = (int)damage;
 
             if (delay == TimeSpan.Zero)
             {
-                if (from is BaseCreature)
+                if (from is BaseCreature && target != null)
                     ((BaseCreature)from).AlterSpellDamageTo(target, ref iDamage);
 
                 if (target is BaseCreature)
                     ((BaseCreature)target).AlterSpellDamageFrom(from, ref iDamage);
 
-                WeightOverloading.DFA = dfa;
+                DamageType dtype = spell != null ? spell.SpellDamageType : DamageType.Spell;
 
-                int damageGiven = AOS.Damage(target, from, iDamage, phys, fire, cold, pois, nrgy, chaos, direct);
-
-                if (from != null) // sanity check
+                if (target != null)
                 {
-                    DoLeech(damageGiven, from, target);
+                    target.DFA = dfa;
                 }
 
-                WeightOverloading.DFA = DFAlgorithm.Standard;
+                int damageGiven = AOS.Damage(damageable, from, iDamage, phys, fire, cold, pois, nrgy, chaos, direct, dtype);
+
+                if(target != null)
+                    Spells.Mysticism.SpellPlagueSpell.OnMobileDamaged(target);
+
+                if (target != null && target.DFA != DFAlgorithm.Standard)
+                {
+                    target.DFA = DFAlgorithm.Standard;
+                }
+
+                NegativeAttributes.OnCombatAction(from);
+
+                if(from != target)
+                    NegativeAttributes.OnCombatAction(target);
             }
             else
             {
-                new SpellDamageTimerAOS(spell, target, from, iDamage, phys, fire, cold, pois, nrgy, chaos, direct, delay, dfa).Start();
+                new SpellDamageTimerAOS(spell, damageable, from, iDamage, phys, fire, cold, pois, nrgy, chaos, direct, delay, dfa).Start();
             }
 
             if (target is BaseCreature && from != null && delay == TimeSpan.Zero)
@@ -1133,49 +1502,29 @@ namespace Server.Spells
             }
         }
 
-        public static void DoLeech(int damageGiven, Mobile from, Mobile target)
-        {
-            TransformContext context = TransformationSpellHelper.GetContext(from);
-
-            if (context != null) /* cleanup */
-            {
-                if (context.Type == typeof(WraithFormSpell))
-                {
-                    int wraithLeech = (5 + (int)((15 * from.Skills.SpiritSpeak.Value) / 100)); // Wraith form gives 5-20% mana leech
-                    int manaLeech = AOS.Scale(damageGiven, wraithLeech);
-                    if (manaLeech != 0)
-                    {
-                        from.Mana += manaLeech;
-                        from.PlaySound(0x44D);
-                    }
-                }
-                else if (context.Type == typeof(VampiricEmbraceSpell))
-                {
-                    #region High Seas
-                    if (target is BaseCreature && ((BaseCreature)target).TaintedLifeAura)
-                    {
-                        AOS.Damage(from, target, AOS.Scale(damageGiven, 20), false, 0, 0, 0, 0, 0, 0, 100, false, false, false);
-                        from.SendLocalizedMessage(1116778); //The tainted life force energy damages you as your body tries to absorb it.
-                    }
-                    #endregion
-                    else
-                    {
-                        from.Hits += AOS.Scale(damageGiven, 20);
-                        from.PlaySound(0x44D);
-                    }
-                }
-            }
-        }
-
         public static void Heal(int amount, Mobile target, Mobile from)
         {
-            Spellweaving.ArcaneEmpowermentSpell.AddHealBonus(from, ref amount);
             Heal(amount, target, from, true);
         }
 
         public static void Heal(int amount, Mobile target, Mobile from, bool message)
         {
-            //TODO: All Healing *spells* go through ArcaneEmpowerment
+            Spellweaving.ArcaneEmpowermentSpell.AddHealBonus(from, ref amount);
+
+            if (amount > 0 && target != from && from is PlayerMobile && target is PlayerMobile)
+            {
+                if (SearingWounds.IsUnderEffects(target))
+                {
+                    amount /= 2;
+                    target.SendLocalizedMessage(1151178); // The cauterized wound resists some of your healing.
+                }
+
+                int realAmount = Math.Min(amount, target.HitsMax - target.Hits);
+
+                if (realAmount > 0 && target != from)
+                    SpiritualityVirtue.OnHeal(from, realAmount);
+            }
+
             target.Heal(amount, from, message);
         }
 
@@ -1191,105 +1540,112 @@ namespace Server.Spells
             public SpellDamageTimer(Spell s, Mobile target, Mobile from, int damage, TimeSpan delay)
                 : base(delay)
             {
-                this.m_Target = target;
-                this.m_From = from;
-                this.m_Damage = damage;
-                this.m_Spell = s;
+                m_Target = target;
+                m_From = from;
+                m_Damage = damage;
+                m_Spell = s;
 
-                if (this.m_Spell != null && this.m_Spell.DelayedDamage && !this.m_Spell.DelayedDamageStacking)
-                    this.m_Spell.StartDelayedDamageContext(target, this);
+                if (m_Spell != null && m_Spell.DelayedDamage && !m_Spell.DelayedDamageStacking)
+                    m_Spell.StartDelayedDamageContext(target, this);
 
-                this.Priority = TimerPriority.TwentyFiveMS;
+                Priority = TimerPriority.TwentyFiveMS;
             }
 
             protected override void OnTick()
             {
-                if (this.m_From is BaseCreature)
-                    ((BaseCreature)this.m_From).AlterSpellDamageTo(this.m_Target, ref this.m_Damage);
+                if (m_From is BaseCreature)
+                    ((BaseCreature)m_From).AlterSpellDamageTo(m_Target, ref m_Damage);
 
-                if (this.m_Target is BaseCreature)
-                    ((BaseCreature)this.m_Target).AlterSpellDamageFrom(this.m_From, ref this.m_Damage);
+                if (m_Target is BaseCreature)
+                    ((BaseCreature)m_Target).AlterSpellDamageFrom(m_From, ref m_Damage);
 
-                this.m_Target.Damage(this.m_Damage);
-                if (this.m_Spell != null)
-                    this.m_Spell.RemoveDelayedDamageContext(this.m_Target);
+                m_Target.Damage(m_Damage);
+                if (m_Spell != null)
+                    m_Spell.RemoveDelayedDamageContext(m_Target);
             }
         }
 
-        private class SpellDamageTimerAOS : Timer
+        public class SpellDamageTimerAOS : Timer
         {
-            private readonly Mobile m_Target;
-
+            private IDamageable m_Target;
             private readonly Mobile m_From;
-
             private int m_Damage;
-            private readonly int m_Phys;
+            private int m_Phys;
+            private int m_Fire;
+            private int m_Cold;
+            private int m_Pois;
+            private int m_Nrgy;
+            private int m_Chaos;
+            private int m_Direct;
+            private DFAlgorithm m_DFA;
+            private Spell m_Spell;
 
-            private readonly int m_Fire;
+            public Spell Spell { get { return m_Spell; } }
 
-            private readonly int m_Cold;
-
-            private readonly int m_Pois;
-
-            private readonly int m_Nrgy;
-
-            private readonly int m_Chaos;
-
-            private readonly int m_Direct;
-
-            private readonly DFAlgorithm m_DFA;
-            private readonly Spell m_Spell;
-
-            public SpellDamageTimerAOS(Spell s, Mobile target, Mobile from, int damage, int phys, int fire, int cold, int pois, int nrgy, int chaos, int direct, TimeSpan delay, DFAlgorithm dfa)
+            public SpellDamageTimerAOS(Spell s, IDamageable target, Mobile from, int damage, int phys, int fire, int cold, int pois, int nrgy, int chaos, int direct, TimeSpan delay, DFAlgorithm dfa)
                 : base(delay)
             {
-                this.m_Target = target;
-                this.m_From = from;
-                this.m_Damage = damage;
-                this.m_Phys = phys;
-                this.m_Fire = fire;
-                this.m_Cold = cold;
-                this.m_Pois = pois;
-                this.m_Nrgy = nrgy;
-                this.m_Chaos = chaos;
-                this.m_Direct = direct;
-                this.m_DFA = dfa;
-                this.m_Spell = s;
-                if (this.m_Spell != null && this.m_Spell.DelayedDamage && !this.m_Spell.DelayedDamageStacking)
-                    this.m_Spell.StartDelayedDamageContext(target, this);
+                m_Target = target;
+                m_From = from;
+                m_Damage = damage;
+                m_Phys = phys;
+                m_Fire = fire;
+                m_Cold = cold;
+                m_Pois = pois;
+                m_Nrgy = nrgy;
+                m_Chaos = chaos;
+                m_Direct = direct;
+                m_DFA = dfa;
+                m_Spell = s;
 
-                this.Priority = TimerPriority.TwentyFiveMS;
+                if (m_Spell != null && m_Spell.DelayedDamage && !m_Spell.DelayedDamageStacking)
+                    m_Spell.StartDelayedDamageContext(target, this);
+
+                Priority = TimerPriority.TwentyFiveMS;
             }
 
             protected override void OnTick()
             {
-                if (this.m_From is BaseCreature && this.m_Target != null)
-                    ((BaseCreature)this.m_From).AlterSpellDamageTo(this.m_Target, ref this.m_Damage);
+                Mobile target = m_Target as Mobile;
 
-                if (this.m_Target is BaseCreature && this.m_From != null)
-                    ((BaseCreature)this.m_Target).AlterSpellDamageFrom(this.m_From, ref this.m_Damage);
+                if (m_From is BaseCreature && target != null)
+                    ((BaseCreature)m_From).AlterSpellDamageTo(target, ref m_Damage);
 
-                WeightOverloading.DFA = this.m_DFA;
+                if (m_Target is BaseCreature && m_From != null)
+                    ((BaseCreature)m_Target).AlterSpellDamageFrom(m_From, ref m_Damage);
 
-                int damageGiven = AOS.Damage(this.m_Target, this.m_From, this.m_Damage, this.m_Phys, this.m_Fire, this.m_Cold, this.m_Pois, this.m_Nrgy, this.m_Chaos, this.m_Direct);
+                DamageType dtype = m_Spell != null ? m_Spell.SpellDamageType : DamageType.Spell;
 
-                if (this.m_From != null) // sanity check
+                if (target != null)
                 {
-                    DoLeech(damageGiven, this.m_From, this.m_Target);
+                    target.DFA = m_DFA;
                 }
 
-                WeightOverloading.DFA = DFAlgorithm.Standard;
+                int damageGiven = AOS.Damage(m_Target, m_From, m_Damage, m_Phys, m_Fire, m_Cold, m_Pois, m_Nrgy, m_Chaos, m_Direct, dtype);
 
-                if (this.m_Target is BaseCreature && this.m_From != null)
+                if (target != null && target.DFA != DFAlgorithm.Standard)
                 {
-                    BaseCreature c = (BaseCreature)this.m_Target;
-
-                    c.OnHarmfulSpell(this.m_From);
-                    c.OnDamagedBySpell(this.m_From);
+                    target.DFA = DFAlgorithm.Standard;
                 }
 
-                if (this.m_Spell != null)
-                    this.m_Spell.RemoveDelayedDamageContext(this.m_Target);
+                if (m_Target is BaseCreature && m_From != null)
+                {
+                    BaseCreature c = (BaseCreature)m_Target;
+
+                    c.OnHarmfulSpell(m_From);
+                    c.OnDamagedBySpell(m_From);
+                }
+
+                if (target != null)
+                    Spells.Mysticism.SpellPlagueSpell.OnMobileDamaged(target);
+
+                if (m_Spell != null)
+                    m_Spell.RemoveDelayedDamageContext(m_Target);
+
+                NegativeAttributes.OnCombatAction(m_From);
+
+                if (m_From != target)
+                    NegativeAttributes.OnCombatAction(target);
             }
         }
     }
@@ -1355,6 +1711,23 @@ namespace Server.Spells
             return (context != null && context.Type == type);
         }
 
+        public static void CheckCastSkill(Mobile m, TransformContext context)
+        {
+            Spell spell = context.Spell as Spell;
+
+            if (spell != null)
+            {
+                double min, max;
+
+                spell.GetCastSkills(out min, out max);
+
+                if (m.Skills[spell.CastSkill].Value < min)
+                {
+                    RemoveContext(m, context, true);
+                }
+            }
+        }
+
         #endregion
 
         public static bool CheckCast(Mobile caster, Spell spell)
@@ -1374,7 +1747,7 @@ namespace Server.Spells
                 caster.SendLocalizedMessage(1061091); // You cannot cast that spell in this form.
                 return false;
             }
-			else if (caster.Flying)
+			else if (caster.Flying && !(spell is VampiricEmbraceSpell))
 			{
 				caster.SendLocalizedMessage(1112567); // You are flying.
 				return false;
@@ -1507,37 +1880,37 @@ namespace Server.Spells
         {
             get
             {
-                return this.m_Timer;
+                return m_Timer;
             }
         }
         public List<ResistanceMod> Mods
         {
             get
             {
-                return this.m_Mods;
+                return m_Mods;
             }
         }
         public Type Type
         {
             get
             {
-                return this.m_Type;
+                return m_Type;
             }
         }
         public ITransformationSpell Spell
         {
             get
             {
-                return this.m_Spell;
+                return m_Spell;
             }
         }
 
         public TransformContext(Timer timer, List<ResistanceMod> mods, Type type, ITransformationSpell spell)
         {
-            this.m_Timer = timer;
-            this.m_Mods = mods;
-            this.m_Type = type;
-            this.m_Spell = spell;
+            m_Timer = timer;
+            m_Mods = mods;
+            m_Type = type;
+            m_Spell = spell;
         }
     }
 
@@ -1549,22 +1922,22 @@ namespace Server.Spells
         public TransformTimer(Mobile from, ITransformationSpell spell)
             : base(TimeSpan.FromSeconds(spell.TickRate), TimeSpan.FromSeconds(spell.TickRate))
         {
-            this.m_Mobile = from;
-            this.m_Spell = spell;
+            m_Mobile = from;
+            m_Spell = spell;
 
-            this.Priority = TimerPriority.TwoFiftyMS;
+            Priority = TimerPriority.TwoFiftyMS;
         }
 
         protected override void OnTick()
         {
-            if (this.m_Mobile.Deleted || !this.m_Mobile.Alive || this.m_Mobile.Body != this.m_Spell.Body || this.m_Mobile.Hue != this.m_Spell.Hue)
+            if (m_Mobile.Deleted || !m_Mobile.Alive || m_Mobile.Body != m_Spell.Body || (m_Mobile.Hue != m_Spell.Hue && !BestialSetHelper.IsBerserk(m_Mobile)))
             {
-                TransformationSpellHelper.RemoveContext(this.m_Mobile, true);
-                this.Stop();
+                TransformationSpellHelper.RemoveContext(m_Mobile, true);
+                Stop();
             }
             else
             {
-                this.m_Spell.OnTick(this.m_Mobile);
+                m_Spell.OnTick(m_Mobile);
             }
         }
     }

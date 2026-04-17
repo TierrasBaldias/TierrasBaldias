@@ -1,12 +1,6 @@
-#region Header
-// **********
-// ServUO - AnimalForm.cs
-// **********
-#endregion
-
 #region References
 using System;
-using System.Collections;
+using System.Collections.Generic;
 
 using Server.Gumps;
 using Server.Items;
@@ -31,7 +25,7 @@ namespace Server.Spells.Ninjitsu
 
 			if (context != null && context.SpeedBoost)
 			{
-				e.Mobile.Send(SpeedControl.MountSpeed);
+                e.Mobile.SendSpeedControl(SpeedControlType.MountSpeed);
 			}
 		}
 
@@ -48,6 +42,17 @@ namespace Server.Spells.Ninjitsu
 		public AnimalForm(Mobile caster, Item scroll)
 			: base(caster, scroll, m_Info)
 		{ }
+
+        public override bool Cast()
+        {
+            if (CasterIsMoving() && GetLastAnimalForm(Caster) == 16)
+            {
+                SkillMasteries.WhiteTigerFormSpell.AutoCast(Caster);
+                return false;
+            }
+
+            return base.Cast();
+        }
 
 		public override bool CheckCast()
 		{
@@ -129,7 +134,7 @@ namespace Server.Spells.Ninjitsu
 				{
 					bool skipGump = (m_WasMoving || CasterIsMoving());
 
-					if (GetLastAnimalForm(Caster) == -1 || !skipGump)
+					if (GetLastAnimalForm(Caster) == -1 || GetLastAnimalForm(Caster) == 16 || !skipGump)
 					{
 						Caster.CloseGump(typeof(AnimalFormGump));
 						Caster.SendGump(new AnimalFormGump(Caster, m_Entries, this));
@@ -164,13 +169,18 @@ namespace Server.Spells.Ninjitsu
 			FinishSequence();
 		}
 
-		private static readonly Hashtable m_LastAnimalForms = new Hashtable();
+        private static readonly Dictionary<Mobile, int> m_LastAnimalForms = new Dictionary<Mobile, int>();
+
+        public static void AddLastAnimalForm(Mobile m, int id)
+        {
+            m_LastAnimalForms[m] = id;
+        }
 
 		public int GetLastAnimalForm(Mobile m)
 		{
-			if (m_LastAnimalForms.Contains(m))
+			if (m_LastAnimalForms.ContainsKey(m))
 			{
-				return (int)m_LastAnimalForms[m];
+				return m_LastAnimalForms[m];
 			}
 
 			return -1;
@@ -192,7 +202,7 @@ namespace Server.Spells.Ninjitsu
 
 			AnimalFormEntry entry = m_Entries[entryID];
 
-			m_LastAnimalForms[m] = entryID; //On OSI, it's the last /attempted/ one not the last succeeded one
+			AddLastAnimalForm(m, entryID); //On OSI, it's the last /attempted/ one not the last succeeded one
 
 			if (m.Skills.Ninjitsu.Value < entry.ReqSkill)
 			{
@@ -238,7 +248,7 @@ namespace Server.Spells.Ninjitsu
 
 			if (entry.SpeedBoost)
 			{
-				m.Send(SpeedControl.MountSpeed);
+                m.SendSpeedControl(SpeedControlType.MountSpeed);
 			}
 
 			SkillMod mod = null;
@@ -263,20 +273,22 @@ namespace Server.Spells.Ninjitsu
 			timer.Start();
 
 			AddContext(m, new AnimalFormContext(timer, mod, entry.SpeedBoost, entry.Type, stealingMod));
-			m.CheckStatTimers();
 			return MorphResult.Success;
 		}
 
-		private static readonly Hashtable m_Table = new Hashtable();
+		private static readonly Dictionary<Mobile, AnimalFormContext> m_Table = new Dictionary<Mobile, AnimalFormContext>();
 
 		public static void AddContext(Mobile m, AnimalFormContext context)
 		{
 			m_Table[m] = context;
 
-			if (context.Type == typeof(BakeKitsune) || context.Type == typeof(GreyWolf))
+			if (context.Type == typeof(BakeKitsune) || context.Type == typeof(GreyWolf)
+                || context.Type == typeof(Dog) || context.Type == typeof(Cat) || context.Type == typeof(WildWhiteTiger))
 			{
-				m.CheckStatTimers();
+                m.ResetStatTimers();
 			}
+
+            m.Delta(MobileDelta.WeaponDamage);
 		}
 
 		public static void RemoveContext(Mobile m, bool resetGraphics)
@@ -287,6 +299,8 @@ namespace Server.Spells.Ninjitsu
 			{
 				RemoveContext(m, context, resetGraphics);
 			}
+
+            m.Delta(MobileDelta.WeaponDamage);
 		}
 
 		public static void RemoveContext(Mobile m, AnimalFormContext context, bool resetGraphics)
@@ -295,7 +309,10 @@ namespace Server.Spells.Ninjitsu
 
 			if (context.SpeedBoost)
 			{
-				m.Send(SpeedControl.Disable);
+                if (m.Region is Server.Regions.TwistedWealdDesert)
+                    m.SendSpeedControl(SpeedControlType.WalkSpeed);
+                else
+                    m.SendSpeedControl(SpeedControlType.Disable);
 			}
 
 			SkillMod mod = context.Mod;
@@ -321,11 +338,17 @@ namespace Server.Spells.Ninjitsu
 			m.FixedParticles(0x3728, 10, 13, 2023, EffectLayer.Waist);
 
 			context.Timer.Stop();
+			
+			BuffInfo.RemoveBuff(m, BuffIcon.AnimalForm);
+            BuffInfo.RemoveBuff(m, BuffIcon.WhiteTigerForm);
 		}
 
 		public static AnimalFormContext GetContext(Mobile m)
 		{
-			return (m_Table[m] as AnimalFormContext);
+            if (m_Table.ContainsKey(m))
+                return m_Table[m];
+
+            return null;
 		}
 
 		public static bool UnderTransformation(Mobile m)
@@ -348,7 +371,7 @@ namespace Server.Spells.Ninjitsu
 		public class AnimalFormEntry
 		{
 			private readonly Type m_Type;
-			private readonly TextDefinition m_Name;
+			private readonly string m_Name;
 			private readonly int m_ItemID;
 			private readonly int m_Hue;
 			private readonly int m_Tooltip;
@@ -361,7 +384,7 @@ namespace Server.Spells.Ninjitsu
 			private readonly bool m_StealingBonus;
 
 			public Type Type { get { return m_Type; } }
-			public TextDefinition Name { get { return m_Name; } }
+			public string Name { get { return m_Name; } }
 			public int ItemID { get { return m_ItemID; } }
 			public int Hue { get { return m_Hue; } }
 			public int Tooltip { get { return m_Tooltip; } }
@@ -379,7 +402,7 @@ namespace Server.Spells.Ninjitsu
 
 			public AnimalFormEntry(
 				Type type,
-				TextDefinition name,
+				string name,
 				int itemID,
 				int hue,
 				int tooltip,
@@ -408,23 +431,23 @@ namespace Server.Spells.Ninjitsu
 
 		private static readonly AnimalFormEntry[] m_Entries = new[]
 		{
-			new AnimalFormEntry(typeof(Kirin), 1029632, 9632, 0, 1070811, 100.0, 0x84, 0, 0, false, true, false),
-			new AnimalFormEntry(typeof(Unicorn), 1018214, 9678, 0, 1070812, 100.0, 0x7A, 0, 0, false, true, false),
-			new AnimalFormEntry(typeof(BakeKitsune), 1030083, 10083, 0, 1070810, 82.5, 0xF6, 0, 0, false, true, false),
-			new AnimalFormEntry(typeof(GreyWolf), 1028482, 9681, 2309, 1070810, 82.5, 0x19, 0x8FD, 0x90E, false, true, false),
-			new AnimalFormEntry(typeof(Llama), 1028438, 8438, 0, 1070809, 70.0, 0xDC, 0, 0, false, true, false),
-			new AnimalFormEntry(typeof(ForestOstard), 1018273, 8503, 2212, 1070809, 70.0, 0xDB, 0x899, 0x8B0, false, true, false)
-			, new AnimalFormEntry(typeof(BullFrog), 1028496, 8496, 2003, 1070807, 50.0, 0x51, 0x7D1, 0x7D6, false, false, false),
-			new AnimalFormEntry(
-				typeof(GiantSerpent), 1018114, 9663, 2009, 1070808, 50.0, 0x15, 0x7D1, 0x7E2, false, false, false),
-			new AnimalFormEntry(typeof(Dog), 1018280, 8476, 2309, 1070806, 40.0, 0xD9, 0x8FD, 0x90E, false, false, false),
-			new AnimalFormEntry(typeof(Cat), 1018264, 8475, 2309, 1070806, 40.0, 0xC9, 0x8FD, 0x90E, false, false, false),
-			new AnimalFormEntry(typeof(Rat), 1018294, 8483, 2309, 1070805, 20.0, 0xEE, 0x8FD, 0x90E, true, false, false),
-			new AnimalFormEntry(typeof(Rabbit), 1028485, 8485, 2309, 1070805, 20.0, 0xCD, 0x8FD, 0x90E, true, false, false),
-			new AnimalFormEntry(typeof(Squirrel), 1031671, 11671, 0, 0, 20.0, 0x116, 0, 0, false, false, false),
-			new AnimalFormEntry(typeof(Ferret), 1031672, 11672, 0, 1075220, 40.0, 0x117, 0, 0, false, false, true),
-			new AnimalFormEntry(typeof(CuSidhe), 1031670, 11670, 0, 1075221, 60.0, 0x115, 0, 0, false, false, false),
-			new AnimalFormEntry(typeof(Reptalon), 1075202, 11669, 0, 1075222, 90.0, 0x114, 0, 0, false, false, false),
+			new AnimalFormEntry(typeof(Kirin), "kirin", 9632, 0, 1070811, 100.0, 0x84, 0, 0, false, true, false),
+			new AnimalFormEntry(typeof(Unicorn), "unicorn", 9678, 0, 1070812, 100.0, 0x7A, 0, 0, false, true, false),
+			new AnimalFormEntry(typeof(BakeKitsune), "bake-kitsune", 10083, 0, 1070810, 82.5, 0xF6, 0, 0, false, true, false),
+			new AnimalFormEntry(typeof(GreyWolf), "wolf", 9681, 2309, 1070810, 82.5, 0x19, 0x8FD, 0x90E, false, true, false),
+			new AnimalFormEntry(typeof(Llama), "llama", 8438, 0, 1070809, 70.0, 0xDC, 0, 0, false, true, false),
+			new AnimalFormEntry(typeof(ForestOstard), "ostard", 8503, 2212, 1070809, 70.0, 0xDB, 0x899, 0x8B0, false, true, false),
+			new AnimalFormEntry(typeof(BullFrog), "bullfrog", 8496, 2003, 1070807, 50.0, 0x51, 0x7D1, 0x7D6, false, false, false),
+			new AnimalFormEntry(typeof(GiantSerpent), "giant serpent", 9663, 2009, 1070808, 50.0, 0x15, 0x7D1, 0x7E2, false, false, false),
+			new AnimalFormEntry(typeof(Dog), "dog", 8476, 2309, 1070806, 40.0, 0xD9, 0x8FD, 0x90E, false, false, false),
+			new AnimalFormEntry(typeof(Cat), "cat", 8475, 2309, 1070806, 40.0, 0xC9, 0x8FD, 0x90E, false, false, false),
+			new AnimalFormEntry(typeof(Rat), "rat", 8483, 2309, 1070805, 20.0, 0xEE, 0x8FD, 0x90E, true, false, false),
+			new AnimalFormEntry(typeof(Rabbit), "rabbit", 8485, 2309, 1070805, 20.0, 0xCD, 0x8FD, 0x90E, true, false, false),
+			new AnimalFormEntry(typeof(Squirrel), "squirrel", 11671, 0, 0, 20.0, 0x116, 0, 0, false, false, false),
+			new AnimalFormEntry(typeof(Ferret), "ferret", 11672, 0, 1075220, 40.0, 0x117, 0, 0, false, false, true),
+			new AnimalFormEntry(typeof(CuSidhe), "cu sidhe", 11670, 0, 1075221, 60.0, 0x115, 0, 0, false, false, false),
+			new AnimalFormEntry(typeof(Reptalon), "reptalon", 11669, 0, 1075222, 90.0, 0x114, 0, 0, false, false, false),
+            new AnimalFormEntry(typeof(WildWhiteTiger), "white tiger", 38980, 2500, 0, 0, 0x4E7, 0, 0, false, false, false),
 		};
 
 		public static AnimalFormEntry[] Entries { get { return m_Entries; } }
@@ -462,7 +485,7 @@ namespace Server.Spells.Ninjitsu
 
 				for (int i = 0; i < entries.Length; ++i)
 				{
-					bool enabled = (ninjitsu >= entries[i].ReqSkill && BaseFormTalisman.EntryEnabled(caster, entries[i].Type));
+					bool enabled = (ninjitsu >= entries[i].ReqSkill && BaseFormTalisman.EntryEnabled(caster, entries[i].Type) && entries[i].Type != typeof(WildWhiteTiger));
 
 					int page = current / 10 + 1;
 					int pos = current % 10;
@@ -504,12 +527,17 @@ namespace Server.Spells.Ninjitsu
 							40 - b.Width / 2 - b.X,
 							30 - b.Height / 2 - b.Y,
 							entries[i].Tooltip);
-						AddHtmlLocalized(x + 84, y, 250, 60, entries[i].Name, 0x7FFF, false, false);
+						AddHtml(x + 84, y, 250, 60, Color(String.Format(entries[i].Name), 0xFFFFFF), false, false);
 
 						current++;
 					}
 				}
 			}
+			
+			private string Color(string str, int color)
+		    	{
+				return String.Format("<BASEFONT COLOR=#{0:X6}>{1}</BASEFONT>", color, str);
+		    	}
 
 			public override void OnResponse(NetState sender, RelayInfo info)
 			{
@@ -530,13 +558,7 @@ namespace Server.Spells.Ninjitsu
 				}
 				else if (BaseFormTalisman.EntryEnabled(sender.Mobile, entry.Type))
 				{
-					#region Dueling
-					if (m_Caster is PlayerMobile && ((PlayerMobile)m_Caster).DuelContext != null &&
-						!((PlayerMobile)m_Caster).DuelContext.AllowSpellCast(m_Caster, m_Spell))
-					{ }
-						#endregion
-
-					else if (Morph(m_Caster, entryID) == MorphResult.Fail)
+					if (Morph(m_Caster, entryID) == MorphResult.Fail)
 					{
 						m_Caster.LocalOverheadMessage(MessageType.Regular, 0x3B2, 502632); // The spell fizzles.
 						m_Caster.FixedParticles(0x3735, 1, 30, 9503, EffectLayer.Waist);
@@ -546,6 +568,10 @@ namespace Server.Spells.Ninjitsu
 					{
 						m_Caster.FixedParticles(0x3728, 10, 13, 2023, EffectLayer.Waist);
 						m_Caster.Mana -= mana;
+						
+						string typename = entry.Name;
+
+                        			BuffInfo.AddBuff(m_Caster, new BuffInfo(BuffIcon.AnimalForm, 1060612, 1075823, String.Format("{0}\t{1}", "aeiouy".IndexOf(typename.ToLower()[0]) >= 0 ? "an" : "a", typename)));
 					}
 				}
 			}
@@ -624,10 +650,10 @@ namespace Server.Spells.Ninjitsu
 				}
 				else if (m_Body == 0x114) // Reptalon
 				{
-					if (m_Mobile.Combatant != null && m_Mobile.Combatant != m_LastTarget)
+					if (m_Mobile.Combatant is Mobile && m_Mobile.Combatant != m_LastTarget)
 					{
 						m_Counter = 1;
-						m_LastTarget = m_Mobile.Combatant;
+						m_LastTarget = (Mobile)m_Mobile.Combatant;
 					}
 
 					if (m_Mobile.Warmode && m_LastTarget != null && m_LastTarget.Alive && !m_LastTarget.Deleted && m_Counter-- <= 0)

@@ -7,37 +7,17 @@ namespace Server.Items
         [Constructable]
         public MeagerMuseumBag()
         {
-            this.AddItem(new Gold(3000));
+            DropItem(new Gold(3000));
+            DropItem(new TerMurQuestRewardBook());
 
-            switch (Utility.Random(9))
+            for (int i = 0; i < Utility.RandomMinMax(5, 7); i++)
             {
-                case 0:
-                    this.AddItem(new Amber(5));
-                    break;
-                case 1:
-                    this.AddItem(new Amethyst(5));
-                    break;
-                case 2:
-                    this.AddItem(new Citrine(5));
-                    break;
-                case 3:
-                    this.AddItem(new Ruby(5));
-                    break;
-                case 4:
-                    this.AddItem(new Emerald(5));
-                    break;
-                case 5:
-                    this.AddItem(new Diamond(5));
-                    break;
-                case 6:
-                    this.AddItem(new Sapphire(5));
-                    break;
-                case 7:
-                    this.AddItem(new StarSapphire(5));
-                    break;
-                case 8:
-                    this.AddItem(new Tourmaline(5));
-                    break;
+                DropItemStacked(Loot.RandomGem());
+            }
+
+            for (int i = 0; i < Utility.RandomMinMax(1, 3); i++)
+            {
+                DropItemStacked(Loot.RandomMLResource());
             }
         }
 

@@ -1,7 +1,9 @@
 using System;
+using Server.Engines.Craft;
 
 namespace Server.Items
 {
+    [Alterable(typeof(DefTinkering), typeof(DualShortAxes))]
     [FlipableAttribute(0xF43, 0xF44)]
     public class Hatchet : BaseAxe
     {
@@ -108,8 +110,6 @@ namespace Server.Items
                 return 80;
             }
         }
-
-        public override bool CanBeWornByGargoyles { get { return true; } }
 
         public override void Serialize(GenericWriter writer)
         {

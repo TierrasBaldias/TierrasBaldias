@@ -1,48 +1,149 @@
-//----------------------------------------------------------------------------------//
-// Created by Vano. Email: vano2006uo@mail.ru      //
-//---------------------------------------------------------------------------------//
 using System;
+using System.Collections.Generic;
+using Server;
+using Server.Items;
+using Server.Mobiles;
 
 namespace Server.Items
 {
     public class Bladeweave : WeaponAbility
     {
+        private class BladeWeaveRedirect
+        {
+            public WeaponAbility NewAbility;
+            public int ClilocEntry;
+
+            public BladeWeaveRedirect(WeaponAbility ability, int cliloc)
+            {
+                NewAbility = ability;
+                ClilocEntry = cliloc;
+            }
+        }
+
+        private static Dictionary<Mobile, BladeWeaveRedirect> m_NewAttack = new Dictionary<Mobile, BladeWeaveRedirect>();
+
+        public static bool BladeWeaving(Mobile attacker, out WeaponAbility a)
+        {
+            BladeWeaveRedirect bwr;
+            bool success = m_NewAttack.TryGetValue(attacker, out bwr);
+            if (success)
+                a = bwr.NewAbility;
+            else
+                a = null;
+
+            return success;
+        }
+
         public Bladeweave()
         {
         }
 
-        public override int BaseMana
+        public override int BaseMana { get { return 30; } }
+
+        public override bool OnBeforeSwing(Mobile attacker, Mobile defender)
         {
-            get
-            {
-                return 15;
-            }
-        }
-        public override bool OnBeforeDamage(Mobile attacker, Mobile defender)
-        {
-            if (!this.Validate(attacker) || !this.CheckMana(attacker, true))
+            if (!Validate(attacker) || !CheckMana(attacker, false))
                 return false;
 
-            ClearCurrentAbility(attacker);
+            int ran = -1;
 
-            attacker.SendMessage("You become one with you weapon, allowing it to guide you hand. The effects of this attack are unpredictable, but effective.");
-            defender.SendMessage("Your enemy becomes one with their weapon and the effects of his attack are unpredictable");
+            if (attacker is BaseCreature && PetTrainingHelper.CheckSecondarySkill((BaseCreature)attacker, SkillName.Bushido))
+            {
+                ran = Utility.Random(9);
+            }
+            else
+            {
+                bool canfeint = attacker.Skills[WeaponAbility.Feint.GetSecondarySkill(attacker)].Value >= WeaponAbility.Feint.GetRequiredSecondarySkill(attacker);
+                bool canblock = attacker.Skills[WeaponAbility.Block.GetSecondarySkill(attacker)].Value >= WeaponAbility.Block.GetRequiredSecondarySkill(attacker);
 
-            attacker.PlaySound(0x20C);
-            attacker.PlaySound(0x56);
-            attacker.FixedParticles(0x3779, 1, 30, 9964, 3, 3, EffectLayer.Waist);
+                if (canfeint && canblock)
+                {
+                    ran = Utility.Random(9);
+                }
+                else if (canblock)
+                {
+                    ran = Utility.Random(8);
+                }
+                else
+                {
+                    ran = Utility.RandomList(0, 1, 2, 3, 4, 5, 6, 8);
+                }
+            }
 
-            IEntity from = new Entity(Serial.Zero, new Point3D(attacker.X, attacker.Y, attacker.Z), attacker.Map);
-            IEntity to = new Entity(Serial.Zero, new Point3D(attacker.X, attacker.Y, attacker.Z + 50), attacker.Map);
-            Effects.SendMovingParticles(from, to, 0xF5F, 1, 0, false, false, 33, 3, 9501, 1, 0, EffectLayer.Head, 0x100);
+            switch (ran)
+            {
+                case 0:
+                    m_NewAttack[attacker] = new BladeWeaveRedirect(WeaponAbility.ArmorIgnore, 1028838);
+                    break;
+                case 1:
+                    m_NewAttack[attacker] = new BladeWeaveRedirect(WeaponAbility.BleedAttack, 1028839);
+                    break;
+                case 2:
+                    m_NewAttack[attacker] = new BladeWeaveRedirect(WeaponAbility.ConcussionBlow, 1028840);
+                    break;
+                case 3:
+                    m_NewAttack[attacker] = new BladeWeaveRedirect(WeaponAbility.CrushingBlow, 1028841);
+                    break;
+                case 4:
+                    m_NewAttack[attacker] = new BladeWeaveRedirect(WeaponAbility.DoubleStrike, 1028844);
+                    break;
+                case 5:
+                    m_NewAttack[attacker] = new BladeWeaveRedirect(WeaponAbility.MortalStrike, 1028846);
+                    break;
+                case 6:
+                    m_NewAttack[attacker] = new BladeWeaveRedirect(WeaponAbility.ParalyzingBlow, 1028848);
+                    break;
+                case 7:
+                    m_NewAttack[attacker] = new BladeWeaveRedirect(WeaponAbility.Block, 1028853);
+                    break;
+                case 8:
+                    m_NewAttack[attacker] = new BladeWeaveRedirect(WeaponAbility.Feint, 1028857);
+                    break;
+                default:
+                    // should never happen
+                    return false;
+            }
 
-            int damage = 10; 
 
-            damage += Math.Min(5, (int)(Math.Abs(attacker.Skills[SkillName.Anatomy].Value + attacker.Skills[SkillName.ArmsLore].Value) / 8));
+            return ((BladeWeaveRedirect)m_NewAttack[attacker]).NewAbility.OnBeforeSwing(attacker, defender);
+        }
 
-            defender.Damage(damage, attacker);
+        public override bool OnBeforeDamage(Mobile attacker, Mobile defender)
+        {
+            BladeWeaveRedirect bwr;
+            if (m_NewAttack.TryGetValue(attacker, out bwr))
+                return bwr.NewAbility.OnBeforeDamage(attacker, defender);
+            else
+                return base.OnBeforeDamage(attacker, defender);
+        }
 
-            return true;
+        public override void OnHit(Mobile attacker, Mobile defender, int damage)
+        {
+            if (CheckMana(attacker, false))
+            {
+                BladeWeaveRedirect bwr;
+                if (m_NewAttack.TryGetValue(attacker, out bwr))
+                {
+                    attacker.SendLocalizedMessage(1072841, "#" + bwr.ClilocEntry.ToString());
+                    bwr.NewAbility.OnHit(attacker, defender, damage);
+                }
+                else
+                    base.OnHit(attacker, defender, damage);
+
+                m_NewAttack.Remove(attacker);
+                ClearCurrentAbility(attacker);
+            }
+        }
+
+        public override void OnMiss(Mobile attacker, Mobile defender)
+        {
+            BladeWeaveRedirect bwr;
+            if (m_NewAttack.TryGetValue(attacker, out bwr))
+                bwr.NewAbility.OnMiss(attacker, defender);
+            else
+                base.OnMiss(attacker, defender);
+
+            m_NewAttack.Remove(attacker);
         }
     }
 }

@@ -2,18 +2,29 @@ using System;
 
 namespace Server.Items
 {
-    public class Lodestone : Item
+    public class Lodestone : Item, ICommodity
     {
         [Constructable]
         public Lodestone()
+            : this(1)
+        {
+        }
+
+        [Constructable]
+        public Lodestone(int amount)
             : base(0x5739)
         {
+            Stackable = true;
+            Amount = amount;
         }
 
         public Lodestone(Serial serial)
             : base(serial)
         {
         }
+
+        TextDefinition ICommodity.Description { get { return LabelNumber; } }
+        bool ICommodity.IsDeedable { get { return true; } }
 
         public override int LabelNumber
         {

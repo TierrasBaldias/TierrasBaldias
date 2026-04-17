@@ -63,18 +63,19 @@ namespace Server.Items
             int version = reader.ReadInt();
         }
 
-        public override void OnHit(Mobile attacker, Mobile defender, double damageBonus)
+        public override void OnHit(Mobile attacker, IDamageable defender, double damageBonus)
         {
             base.OnHit(attacker, defender, damageBonus);
 
-            defender.Stam -= Utility.Random(3, 3); // 3-5 points of stamina loss
+            if(defender is Mobile)
+                ((Mobile)defender).Stam -= Utility.Random(3, 3); // 3-5 points of stamina loss
         }
 
         public override double GetBaseDamage(Mobile attacker)
         {
             double damage = base.GetBaseDamage(attacker);
 
-            if (!Core.AOS && (attacker.Player || attacker.Body.IsHuman) && this.Layer == Layer.TwoHanded && (attacker.Skills[SkillName.Anatomy].Value / 400.0) >= Utility.RandomDouble() && Engines.ConPVP.DuelContext.AllowSpecialAbility(attacker, "Crushing Blow", false))
+            if (!Core.AOS && (attacker.Player || attacker.Body.IsHuman) && this.Layer == Layer.TwoHanded && (attacker.Skills[SkillName.Anatomy].Value / 400.0) >= Utility.RandomDouble())
             {
                 damage *= 1.5;
 

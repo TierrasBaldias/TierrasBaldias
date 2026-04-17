@@ -26,13 +26,12 @@ namespace Server.Gumps
 	public class GumpTooltip : GumpEntry
 	{
 		private int m_Number;
-
-		public GumpTooltip( int number )
+        public GumpTooltip( int number )
 		{
 			m_Number = number;
 		}
 
-		public int Number
+        public int Number
 		{
 			get
 			{
@@ -44,10 +43,10 @@ namespace Server.Gumps
 			}
 		}
 
-		public override string Compile()
+        public override string Compile()
 		{
-			return String.Format( "{{ tooltip {0} }}", m_Number );
-		}
+            return string.Format("{{ tooltip {0} }}", m_Number);
+        }
 
 		private static byte[] m_LayoutName = Gump.StringToBuffer( "tooltip" );
 
@@ -55,6 +54,6 @@ namespace Server.Gumps
 		{
 			disp.AppendLayout( m_LayoutName );
 			disp.AppendLayout( m_Number );
-		}
+        }
 	}
 }
